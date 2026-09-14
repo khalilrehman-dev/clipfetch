@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#09090b" />
+  <meta name="description" content="Download public TikTok videos you have permission to save." />
+  <title>ClipFetch — TikTok Video Downloader</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="noise"></div>
+  <header class="nav shell">
+    <a class="brand" href="/" aria-label="ClipFetch home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M8.5 4.5h7a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-7a4 4 0 0 1-4-4v-7a4 4 0 0 1 4-4Z"/><path d="M10 9.2 15 12l-5 2.8V9.2Z"/></svg>
+      </span>
+      <span>ClipFetch</span>
+    </a>
+    <div class="nav-pill">Public videos only</div>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="eyebrow"><span></span> Fast · Clean · No account required</div>
+      <h1>Save the TikTok videos<br/><span>you’re allowed to keep.</span></h1>
+      <p class="lede">Paste a public TikTok link. ClipFetch finds the available media streams and gives you clean video, best-available video, and MP3 options.</p>
+
+      <form id="downloadForm" class="download-box" novalidate>
+        <div class="input-wrap">
+          <svg class="link-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.7 1.7"/><path d="M13.6 10.4a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.7-1.7"/></svg>
+          <input id="videoUrl" type="url" autocomplete="off" spellcheck="false" placeholder="Paste TikTok link here…" aria-label="TikTok video URL" required />
+          <button id="pasteBtn" type="button" class="paste-btn">Paste</button>
+        </div>
+        <button id="fetchBtn" class="primary-btn" type="submit">
+          <span>Get download links</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </form>
+
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+
+      <section id="result" class="result-card hidden" aria-live="polite">
+        <div class="media-preview">
+          <img id="thumb" alt="TikTok video thumbnail" />
+          <div class="duration" id="duration"></div>
+        </div>
+        <div class="result-content">
+          <div class="result-meta">
+            <div>
+              <p class="creator" id="author"></p>
+              <h2 id="title"></h2>
+            </div>
+            <span id="cleanBadge" class="clean-badge">Clean stream found</span>
+          </div>
+          <div class="actions">
+            <button id="cleanBtn" class="download-action accent" type="button">
+              <span class="action-icon">↓</span>
+              <span><strong>Without watermark</strong><small id="cleanQuality">Best clean stream</small></span>
+            </button>
+            <button id="bestBtn" class="download-action" type="button">
+              <span class="action-icon">↓</span>
+              <span><strong>Best available MP4</strong><small>Fallback video option</small></span>
+            </button>
+            <button id="audioBtn" class="download-action" type="button">
+              <span class="action-icon">♫</span>
+              <span><strong>Download MP3</strong><small>192 kbps audio</small></span>
+            </button>
+          </div>
+          <p class="rights-note">Only download content you own or have permission to save. Private/login-only posts are not supported.</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="how shell">
+      <div class="section-label">How it works</div>
+      <div class="steps">
+        <article><span>01</span><h3>Copy the link</h3><p>Open a public TikTok post and copy its share URL.</p></article>
+        <article><span>02</span><h3>Paste & resolve</h3><p>ClipFetch checks the public media formats exposed for that post.</p></article>
+        <article><span>03</span><h3>Choose a format</h3><p>Download a clean stream when available, best MP4, or an MP3.</p></article>
+      </div>
+    </section>
+
+    <section class="faq shell">
+      <div class="section-label">Good to know</div>
+      <div class="faq-grid">
+        <article><h3>Does it remove a watermark from the pixels?</h3><p>No. It looks for a public media stream that TikTok exposes without the branded watermark. If TikTok only exposes a watermarked stream, the site says so.</p></article>
+        <article><h3>Does it work with private videos?</h3><p>No. The backend does not use accounts, session cookies, or private-access bypasses.</p></article>
+        <article><h3>Why can a link fail sometimes?</h3><p>TikTok changes its delivery system and rate limits servers. Keeping the extractor current is part of operating this type of service.</p></article>
+        <article><h3>Are videos stored permanently?</h3><p>No. Downloads are created in a temporary server folder and deleted after the response is sent.</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer shell">
+    <div><strong>ClipFetch</strong><span>Independent downloader for permitted public content.</span></div>
+    <p>Not affiliated with or endorsed by TikTok.</p>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
