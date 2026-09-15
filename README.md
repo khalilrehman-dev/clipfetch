@@ -137,3 +137,18 @@ The production frontend includes Google Analytics 4 measurement ID `G-EDY1BTVYY9
 - `download_failed` (currently records resolve-stage failures)
 
 Before promoting the site broadly, publish an appropriate privacy/cookie notice and configure consent handling where legally required.
+
+## Trust, legal, and SEO pages
+
+The production frontend includes these public pages:
+
+- `/about/`
+- `/faq/`
+- `/privacy/`
+- `/terms/`
+- `/copyright/`
+- `/contact/`
+
+The sitemap contains all public pages and `robots.txt` points search engines to `https://snipivo.online/sitemap.xml`. The public contact address used by the pages is `support@snipivo.online`; configure that address as a working mailbox or forwarding alias before promoting the site.
+
+For EEA/UK ad monetization later, configure an appropriate consent-management solution before enabling personalized advertising. Google AdSense may require a Google-certified CMP depending on audience and product configuration.

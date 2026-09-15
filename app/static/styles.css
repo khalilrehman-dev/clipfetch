@@ -106,3 +106,28 @@ h1 span { color: #a9aab4; }
   .media-preview { min-height: 330px; }
   .result-content { padding: 18px; }
 }
+
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.footer-links a, .nav-link, .legal-card a { color: #b9bac2; text-decoration: none; }
+.footer-links a:hover, .nav-link:hover, .legal-card a:hover { color: var(--cyan); }
+.nav-link { font-size: 13px; border: 1px solid var(--line); background: rgba(255,255,255,.035); padding: 9px 13px; border-radius: 999px; }
+.legal-main { padding-bottom: 80px; }
+.legal-hero { max-width: 850px; padding: 72px 0 34px; }
+.legal-hero h1 { margin: 20px 0 16px; max-width: 900px; font-size: clamp(42px, 6vw, 72px); }
+.legal-intro { margin: 0; max-width: 780px; color: var(--muted); font-size: 17px; line-height: 1.7; }
+.legal-card { max-width: 900px; border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(150deg, rgba(255,255,255,.05), rgba(255,255,255,.018)); padding: clamp(24px, 4vw, 42px); box-shadow: var(--shadow); }
+.legal-card h2 { margin: 34px 0 10px; font-size: 20px; letter-spacing: -.025em; }
+.legal-card h2:first-child { margin-top: 0; }
+.legal-card p, .legal-card li { color: #a9aab3; line-height: 1.75; font-size: 15px; }
+.legal-card ul { padding-left: 22px; }
+.legal-card strong { color: var(--text); }
+.contact-box { border: 1px solid rgba(56,246,230,.18); background: rgba(56,246,230,.06); border-radius: 18px; padding: 22px; margin-bottom: 28px; }
+.contact-label { display: block; color: #8e909a; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.contact-email { font-size: clamp(20px, 4vw, 30px); font-weight: 800; letter-spacing: -.03em; }
+.callout { border-left: 3px solid var(--pink); padding: 13px 16px; background: rgba(255,77,142,.06); border-radius: 0 12px 12px 0; }
+.legal-footer { align-items: flex-start; }
+@media (max-width: 760px) {
+  .legal-hero { padding: 50px 0 28px; }
+  .legal-footer { flex-direction: column; }
+  .footer-links { gap: 9px 13px; }
+}
