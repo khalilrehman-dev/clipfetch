@@ -152,3 +152,17 @@ The production frontend includes these public pages:
 The sitemap contains all public pages and `robots.txt` points search engines to `https://snipivo.online/sitemap.xml`. The public contact address used by the pages is `support@snipivo.online`; configure that address as a working mailbox or forwarding alias before promoting the site.
 
 For EEA/UK ad monetization later, configure an appropriate consent-management solution before enabling personalized advertising. Google AdSense may require a Google-certified CMP depending on audience and product configuration.
+
+
+## SEO landing pages
+
+This release includes indexable, canonical guide pages for:
+
+- `/guides/`
+- `/tiktok-video-downloader/`
+- `/tiktok-video-downloader-without-watermark/`
+- `/tiktok-to-mp3/`
+- `/download-tiktok-video-iphone/`
+- `/download-tiktok-video-android/`
+
+The pages are linked internally from the homepage, use the existing GA4 tag, and are included in `sitemap.xml`.
