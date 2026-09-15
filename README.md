@@ -1,4 +1,4 @@
-# ClipFetch
+# Snipivo
 
 A full-stack TikTok downloader for **public videos that the user is allowed to save**.
 
@@ -99,7 +99,7 @@ Recommended layout:
 Internet
   -> Cloudflare / CDN / WAF
   -> Nginx or Caddy (HTTPS, request limits)
-  -> ClipFetch Docker container
+  -> Snipivo Docker container
 ```
 
 For a public service, also add:

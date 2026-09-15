@@ -37,7 +37,7 @@ class ResolveRequest(BaseModel):
 
 
 app = FastAPI(
-    title="ClipFetch",
+    title="Snipivo",
     version="1.0.0",
     docs_url="/api/docs" if os.getenv("ENABLE_DOCS", "0") == "1" else None,
     redoc_url=None,
@@ -70,7 +70,7 @@ async def security_and_rate_limit(request: Request, call_next):
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "service": "clipfetch"}
+    return {"ok": True, "service": "snipivo"}
 
 
 @app.post("/api/resolve")

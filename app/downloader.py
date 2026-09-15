@@ -161,7 +161,7 @@ def download_media(
     # Resolve once so we can deliberately select a clean stream rather than
     # depending on a site's changing default format order.
     info = _extract_raw(url, max_duration_seconds=max_duration_seconds)
-    temp_dir = Path(tempfile.mkdtemp(prefix="clipfetch-"))
+    temp_dir = Path(tempfile.mkdtemp(prefix="snipivo-"))
     video_id = str(info.get("id") or "")
     title = info.get("title") or info.get("description") or "tiktok-video"
 
