@@ -125,3 +125,15 @@ Copy `.env.example` and tune as needed.
 ## Clean-stream logic
 
 TikTok often exposes more than one media format. The project does **not** edit video frames to erase a watermark. Instead it selects a public stream that is not labelled or signalled as watermarked. If only a branded stream is available, the UI disables the "Without watermark" button.
+
+## Analytics
+
+The production frontend includes Google Analytics 4 measurement ID `G-EDY1BTVYY9`. In addition to standard page-view/enhanced-measurement data, the frontend emits these custom events without sending TikTok URLs, creator names, or other video metadata to Analytics:
+
+- `video_resolved`
+- `download_clean`
+- `download_mp4`
+- `download_mp3`
+- `download_failed` (currently records resolve-stage failures)
+
+Before promoting the site broadly, publish an appropriate privacy/cookie notice and configure consent handling where legally required.

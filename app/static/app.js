@@ -33,10 +33,43 @@ function setLoading(loading) {
   fetchBtn.querySelector('span').textContent = loading ? 'Checking video…' : 'Get download links';
 }
 
+function trackEvent(name, params = {}) {
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', name, params);
+  }
+}
+
+function trackAndNavigate(name, params, destination) {
+  let navigated = false;
+  const go = () => {
+    if (navigated) return;
+    navigated = true;
+    window.location.href = destination;
+  };
+
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', name, {
+      ...params,
+      event_callback: go,
+      event_timeout: 700
+    });
+    window.setTimeout(go, 750);
+  } else {
+    go();
+  }
+}
+
 function buildDownload(kind) {
   if (!currentUrl) return;
   const params = new URLSearchParams({ url: currentUrl, kind });
-  window.location.href = `/api/download?${params.toString()}`;
+  const destination = `/api/download?${params.toString()}`;
+  const eventName = {
+    'video-clean': 'download_clean',
+    'video-best': 'download_mp4',
+    'audio-mp3': 'download_mp3'
+  }[kind] || 'download_started';
+
+  trackAndNavigate(eventName, { format: kind }, destination);
 }
 
 pasteBtn.addEventListener('click', async () => {
@@ -92,8 +125,15 @@ form.addEventListener('submit', async (event) => {
 
     result.classList.remove('hidden');
     showMessage('Video ready. Choose a download format.', true);
+    trackEvent('video_resolved', {
+      clean_available: data.clean_available ? 'yes' : 'no'
+    });
     result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (error) {
+    trackEvent('download_failed', {
+      stage: 'resolve',
+      reason: 'resolve_error'
+    });
     showMessage(error.message || 'Something went wrong.');
   } finally {
     setLoading(false);
