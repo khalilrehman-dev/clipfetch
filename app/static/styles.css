@@ -174,3 +174,21 @@ h1 span { color: #a9aab4; }
   .guide-hero-actions { flex-direction: column; }
   .guide-cta, .guide-secondary { width: 100%; }
 }
+
+/* Download hardening: keep the page stable while the server prepares an attachment. */
+.download-frame { position: fixed; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; left: -9999px; top: -9999px; }
+.download-action.preparing { opacity: .72; cursor: wait; border-color: rgba(56,246,230,.28); }
+.download-action.preparing .action-icon { font-size: 0; }
+.download-action.preparing .action-icon::after {
+  content: "";
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255,255,255,.28);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: snipivo-spin .8s linear infinite;
+}
+@keyframes snipivo-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .download-action.preparing .action-icon::after { animation-duration: 1.6s; }
+}

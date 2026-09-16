@@ -15,6 +15,27 @@ const audioBtn = document.getElementById('audioBtn');
 const cleanQuality = document.getElementById('cleanQuality');
 
 let currentUrl = '';
+let cleanAvailable = false;
+let downloadBusy = false;
+let downloadUnlockTimer = null;
+
+const actionButtons = [cleanBtn, bestBtn, audioBtn];
+const actionCopy = {
+  'video-clean': {
+    title: 'Without watermark',
+    subtitle: () => cleanAvailable
+      ? (cleanQuality.textContent || 'Best clean stream')
+      : 'Clean stream unavailable'
+  },
+  'video-best': {
+    title: 'Best available MP4',
+    subtitle: () => 'Fallback video option'
+  },
+  'audio-mp3': {
+    title: 'Download MP3',
+    subtitle: () => '192 kbps audio'
+  }
+};
 
 function formatDuration(seconds) {
   if (!seconds) return '';
@@ -39,15 +60,90 @@ function trackEvent(name, params = {}) {
   }
 }
 
-function trackAndNavigate(name, params, destination) {
-  let navigated = false;
-  const go = () => {
-    if (navigated) return;
-    navigated = true;
-    window.location.href = destination;
+function getDownloadFrame() {
+  let frame = document.getElementById('downloadFrame');
+  if (frame) return frame;
+
+  frame = document.createElement('iframe');
+  frame.id = 'downloadFrame';
+  frame.name = 'downloadFrame';
+  frame.title = 'Download transfer';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.tabIndex = -1;
+  frame.className = 'download-frame';
+  document.body.appendChild(frame);
+  return frame;
+}
+
+function restoreActionButton(button, kind) {
+  button.classList.remove('preparing');
+  button.removeAttribute('aria-busy');
+
+  const copy = actionCopy[kind];
+  const strong = button.querySelector('strong');
+  const small = button.querySelector('small');
+  if (copy && strong) strong.textContent = copy.title;
+  if (copy && small) small.textContent = copy.subtitle();
+}
+
+function setDownloadBusy(active, activeButton = null, activeKind = '') {
+  downloadBusy = active;
+
+  if (downloadUnlockTimer) {
+    window.clearTimeout(downloadUnlockTimer);
+    downloadUnlockTimer = null;
+  }
+
+  if (active) {
+    actionButtons.forEach((button) => {
+      button.disabled = true;
+    });
+
+    if (activeButton) {
+      activeButton.classList.add('preparing');
+      activeButton.setAttribute('aria-busy', 'true');
+      const strong = activeButton.querySelector('strong');
+      const small = activeButton.querySelector('small');
+      if (strong) strong.textContent = 'Preparing download…';
+      if (small) small.textContent = 'Please wait — this can take a few seconds';
+    }
+
+    showMessage('Preparing your download… Please wait and avoid clicking again.', true);
+
+    // Attachment responses do not reliably fire a browser event when the Save/Download
+    // handoff begins, so use a conservative unlock fallback. The download itself continues.
+    downloadUnlockTimer = window.setTimeout(() => {
+      setDownloadBusy(false, activeButton, activeKind);
+    }, 20000);
+    return;
+  }
+
+  restoreActionButton(cleanBtn, 'video-clean');
+  restoreActionButton(bestBtn, 'video-best');
+  restoreActionButton(audioBtn, 'audio-mp3');
+
+  cleanBtn.disabled = !cleanAvailable;
+  bestBtn.disabled = false;
+  audioBtn.disabled = false;
+  showMessage('Download started. You can choose another format.', true);
+}
+
+function startDownload(name, params, destination, button, kind) {
+  const begin = () => {
+    const frame = getDownloadFrame();
+    frame.src = destination;
   };
 
+  setDownloadBusy(true, button, kind);
+
   if (typeof window.gtag === 'function') {
+    let started = false;
+    const go = () => {
+      if (started) return;
+      started = true;
+      begin();
+    };
+
     window.gtag('event', name, {
       ...params,
       event_callback: go,
@@ -55,12 +151,13 @@ function trackAndNavigate(name, params, destination) {
     });
     window.setTimeout(go, 750);
   } else {
-    go();
+    begin();
   }
 }
 
-function buildDownload(kind) {
-  if (!currentUrl) return;
+function buildDownload(kind, button) {
+  if (!currentUrl || downloadBusy) return;
+
   const params = new URLSearchParams({ url: currentUrl, kind });
   const destination = `/api/download?${params.toString()}`;
   const eventName = {
@@ -69,7 +166,7 @@ function buildDownload(kind) {
     'audio-mp3': 'download_mp3'
   }[kind] || 'download_started';
 
-  trackAndNavigate(eventName, { format: kind }, destination);
+  startDownload(eventName, { format: kind }, destination, button, kind);
 }
 
 pasteBtn.addEventListener('click', async () => {
@@ -83,9 +180,9 @@ pasteBtn.addEventListener('click', async () => {
   }
 });
 
-cleanBtn.addEventListener('click', () => buildDownload('video-clean'));
-bestBtn.addEventListener('click', () => buildDownload('video-best'));
-audioBtn.addEventListener('click', () => buildDownload('audio-mp3'));
+cleanBtn.addEventListener('click', () => buildDownload('video-clean', cleanBtn));
+bestBtn.addEventListener('click', () => buildDownload('video-best', bestBtn));
+audioBtn.addEventListener('click', () => buildDownload('audio-mp3', audioBtn));
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -116,17 +213,18 @@ form.addEventListener('submit', async (event) => {
     duration.textContent = formatDuration(data.duration);
     duration.style.display = data.duration ? 'block' : 'none';
 
-    cleanBtn.disabled = !data.clean_available;
-    cleanBadge.classList.toggle('off', !data.clean_available);
-    cleanBadge.textContent = data.clean_available ? 'Clean stream found' : 'Clean stream unavailable';
-    cleanQuality.textContent = data.clean_available
+    cleanAvailable = Boolean(data.clean_available);
+    cleanBtn.disabled = !cleanAvailable;
+    cleanBadge.classList.toggle('off', !cleanAvailable);
+    cleanBadge.textContent = cleanAvailable ? 'Clean stream found' : 'Clean stream unavailable';
+    cleanQuality.textContent = cleanAvailable
       ? (data.clean_resolution ? `${data.clean_resolution} · best clean stream` : 'Best clean stream')
       : 'TikTok only exposed a branded stream';
 
     result.classList.remove('hidden');
     showMessage('Video ready. Choose a download format.', true);
     trackEvent('video_resolved', {
-      clean_available: data.clean_available ? 'yes' : 'no'
+      clean_available: cleanAvailable ? 'yes' : 'no'
     });
     result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (error) {
