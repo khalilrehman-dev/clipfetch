@@ -200,3 +200,16 @@ h1 span { color: #a9aab4; }
 @media (prefers-reduced-motion: reduce) {
   .download-action.preparing .action-icon::after { animation-duration: 1.6s; }
 }
+
+/* V1.2: prepared-download handoff, especially for iPhone/iPad Safari. */
+.download-action.ready {
+  border-color: rgba(56,246,230,.5);
+  background: linear-gradient(135deg, rgba(56,246,230,.15), rgba(111,78,255,.13));
+  box-shadow: 0 0 0 1px rgba(56,246,230,.08), 0 12px 34px rgba(0,0,0,.22);
+}
+.download-action.ready .action-icon {
+  color: var(--cyan);
+}
+.download-action.ready strong {
+  color: #fff;
+}

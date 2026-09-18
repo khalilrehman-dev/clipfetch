@@ -53,3 +53,12 @@ AFTER DEPLOYMENT - TEST THESE FIRST
 
 IMPORTANT
 Instagram can change its public delivery/login requirements. A public post can sometimes still be rejected by Instagram/yt-dlp. The app fails gracefully rather than using personal account credentials to bypass those restrictions.
+
+V1.2 download handoff fix (iPhone/iPad Safari)
+- Replaced the hidden iframe download handoff that could appear stuck on iOS Safari.
+- Added /api/prepare-download to prepare the media file server-side and return a short-lived token.
+- Added /api/prepared-download/{token} to hand the prepared attachment directly to the browser.
+- iOS now shows real elapsed preparation time, then a clear "Ready - tap to save" step.
+- Desktop/Android automatically start the prepared file once ready, with the same direct-attachment fallback.
+- Removed the blind 20-second unlock that could allow duplicate server-side downloads while a prior request was still running.
+- Prepared files expire after 5 minutes by default (PREPARED_TTL_SECONDS=300).

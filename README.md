@@ -161,3 +161,8 @@ python scripts/submit_indexnow.py --url https://snipivo.online/instagram-reels-d
 ```
 
 Do not repeatedly submit unchanged URLs.
+
+## V1.2 mobile download handoff
+
+The download flow now prepares files through `/api/prepare-download` and hands them to the browser using a short-lived `/api/prepared-download/{token}` URL. This replaces the old hidden-iframe handoff, which could appear stuck on iPhone/iPad Safari. iOS users see a clear **Ready - tap to save** state after preparation; desktop and Android attempt the handoff automatically.
+

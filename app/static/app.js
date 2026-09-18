@@ -19,9 +19,12 @@ let currentUrl = '';
 let currentPlatform = 'tiktok';
 let cleanAvailable = false;
 let downloadBusy = false;
-let downloadUnlockTimer = null;
+let prepareElapsedTimer = null;
+let prepareAbortController = null;
 
 const actionButtons = [cleanBtn, bestBtn, audioBtn];
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function platformLabel() {
   return currentPlatform === 'instagram' ? 'Instagram' : 'TikTok';
@@ -70,24 +73,17 @@ function trackEvent(name, params = {}) {
   }
 }
 
-function getDownloadFrame() {
-  let frame = document.getElementById('downloadFrame');
-  if (frame) return frame;
-
-  frame = document.createElement('iframe');
-  frame.id = 'downloadFrame';
-  frame.name = 'downloadFrame';
-  frame.title = 'Download transfer';
-  frame.setAttribute('aria-hidden', 'true');
-  frame.tabIndex = -1;
-  frame.className = 'download-frame';
-  document.body.appendChild(frame);
-  return frame;
+function clearPrepareTimer() {
+  if (prepareElapsedTimer) {
+    window.clearInterval(prepareElapsedTimer);
+    prepareElapsedTimer = null;
+  }
 }
 
 function restoreActionButton(button, kind) {
-  button.classList.remove('preparing');
+  button.classList.remove('preparing', 'ready');
   button.removeAttribute('aria-busy');
+  delete button.dataset.downloadUrl;
 
   const copy = actionCopy(kind);
   const strong = button.querySelector('strong');
@@ -96,38 +92,7 @@ function restoreActionButton(button, kind) {
   if (small) small.textContent = copy.subtitle;
 }
 
-function setDownloadBusy(active, activeButton = null, activeKind = '') {
-  downloadBusy = active;
-
-  if (downloadUnlockTimer) {
-    window.clearTimeout(downloadUnlockTimer);
-    downloadUnlockTimer = null;
-  }
-
-  if (active) {
-    actionButtons.forEach((button) => {
-      button.disabled = true;
-    });
-
-    if (activeButton) {
-      activeButton.classList.add('preparing');
-      activeButton.setAttribute('aria-busy', 'true');
-      const strong = activeButton.querySelector('strong');
-      const small = activeButton.querySelector('small');
-      if (strong) strong.textContent = 'Preparing download…';
-      if (small) small.textContent = 'Please wait — this can take a few seconds';
-    }
-
-    showMessage(`Preparing your ${platformLabel()} download… Please wait and avoid clicking again.`, true);
-
-    // Attachment responses do not reliably fire a browser event when the
-    // Save/Download handoff begins, so use a conservative unlock fallback.
-    downloadUnlockTimer = window.setTimeout(() => {
-      setDownloadBusy(false, activeButton, activeKind);
-    }, 20000);
-    return;
-  }
-
+function resetActionButtons() {
   restoreActionButton(cleanBtn, 'video-clean');
   restoreActionButton(bestBtn, 'video-best');
   restoreActionButton(audioBtn, 'audio-mp3');
@@ -135,42 +100,106 @@ function setDownloadBusy(active, activeButton = null, activeKind = '') {
   cleanBtn.disabled = currentPlatform !== 'tiktok' || !cleanAvailable;
   bestBtn.disabled = false;
   audioBtn.disabled = false;
-  showMessage('Download started. You can choose another format.', true);
 }
 
-function startDownload(name, params, destination, button, kind) {
-  const begin = () => {
-    const frame = getDownloadFrame();
-    frame.src = destination;
-  };
+function setDownloadBusy(active, activeButton = null) {
+  downloadBusy = active;
+  clearPrepareTimer();
 
-  setDownloadBusy(true, button, kind);
+  if (!active) {
+    resetActionButtons();
+    return;
+  }
 
-  if (typeof window.gtag === 'function') {
-    let started = false;
-    const go = () => {
-      if (started) return;
-      started = true;
-      begin();
-    };
+  actionButtons.forEach((button) => {
+    button.disabled = true;
+  });
 
-    window.gtag('event', name, {
-      ...params,
-      event_callback: go,
-      event_timeout: 700
-    });
-    window.setTimeout(go, 750);
-  } else {
-    begin();
+  if (!activeButton) return;
+
+  activeButton.classList.add('preparing');
+  activeButton.setAttribute('aria-busy', 'true');
+  const strong = activeButton.querySelector('strong');
+  const small = activeButton.querySelector('small');
+  if (strong) strong.textContent = 'Preparing download…';
+
+  let elapsed = 0;
+  if (small) small.textContent = 'Connecting securely… 0s';
+  prepareElapsedTimer = window.setInterval(() => {
+    elapsed += 1;
+    if (small) {
+      small.textContent = elapsed < 8
+        ? `Connecting securely… ${elapsed}s`
+        : `Still preparing… ${elapsed}s — please keep this page open`;
+    }
+  }, 1000);
+
+  showMessage(`Preparing your ${platformLabel()} file. Keep this page open — Snipivo will tell you when it is ready.`, true);
+}
+
+function markReady(button, kind, downloadUrl) {
+  downloadBusy = false;
+  clearPrepareTimer();
+  resetActionButtons();
+
+  // Keep only the prepared action available until the handoff is completed.
+  // This prevents a second server-side preparation from being started while
+  // Safari is waiting for the first prepared file to be saved.
+  actionButtons.forEach((actionButton) => {
+    actionButton.disabled = true;
+  });
+
+  button.dataset.downloadUrl = downloadUrl;
+  button.classList.add('ready');
+  button.disabled = false;
+  const strong = button.querySelector('strong');
+  const small = button.querySelector('small');
+  if (strong) strong.textContent = isIOS ? 'Ready — tap to save' : 'Download ready';
+  if (small) {
+    small.textContent = isIOS
+      ? 'Tap once more to open Safari download'
+      : 'Your browser is starting the download';
   }
 }
 
-function buildDownload(kind, button) {
-  if (!currentUrl || downloadBusy) return;
+function handoffPreparedDownload(button, kind) {
+  const downloadUrl = button.dataset.downloadUrl;
+  if (!downloadUrl) return false;
+
+  trackEvent('download_handoff', {
+    format: kind,
+    platform: currentPlatform,
+    ios: isIOS ? 'yes' : 'no'
+  });
+
+  // A top-level navigation to a same-origin attachment is much more reliable
+  // on iPhone/iPad Safari than loading the file inside a hidden iframe.
+  window.location.assign(downloadUrl);
+  showMessage(
+    isIOS
+      ? 'Download sent to Safari. Check Safari’s download arrow or the Files app.'
+      : 'Download started. You can choose another format.',
+    true
+  );
+
+  window.setTimeout(() => {
+    resetActionButtons();
+  }, 2500);
+  return true;
+}
+
+async function buildDownload(kind, button) {
+  if (!currentUrl) return;
   if (currentPlatform === 'instagram' && kind === 'video-clean') return;
 
-  const params = new URLSearchParams({ url: currentUrl, kind });
-  const destination = `/api/download?${params.toString()}`;
+  // On iOS the first tap prepares the file; the second tap is a real user
+  // gesture that hands the attachment to Safari's download manager.
+  if (button.dataset.downloadUrl) {
+    handoffPreparedDownload(button, kind);
+    return;
+  }
+
+  if (downloadBusy) return;
 
   let eventName = 'download_started';
   if (currentPlatform === 'instagram') {
@@ -186,13 +215,62 @@ function buildDownload(kind, button) {
     }[kind] || eventName;
   }
 
-  startDownload(
-    eventName,
-    { format: kind, platform: currentPlatform },
-    destination,
-    button,
-    kind
-  );
+  trackEvent(eventName, { format: kind, platform: currentPlatform });
+  setDownloadBusy(true, button);
+
+  prepareAbortController = new AbortController();
+  const timeout = window.setTimeout(() => prepareAbortController.abort(), 90000);
+
+  try {
+    const response = await fetch('/api/prepare-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: currentUrl, kind }),
+      signal: prepareAbortController.signal
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'The download could not be prepared. Please try again.');
+    }
+
+    markReady(button, kind, data.download_url);
+
+    if (isIOS) {
+      showMessage('Ready. Tap the highlighted button once more to save the file in Safari.', true);
+    } else {
+      showMessage('File ready. Starting your browser download…', true);
+      window.setTimeout(() => {
+        if (button.dataset.downloadUrl) handoffPreparedDownload(button, kind);
+      }, 120);
+    }
+  } catch (error) {
+    downloadBusy = false;
+    clearPrepareTimer();
+    resetActionButtons();
+    const timedOut = error && error.name === 'AbortError';
+    showMessage(
+      timedOut
+        ? 'This download is taking too long. Please try once more or choose another format.'
+        : (error.message || 'The download could not be prepared.'),
+      false
+    );
+    trackEvent('download_failed', {
+      stage: 'prepare',
+      platform: currentPlatform,
+      format: kind,
+      reason: timedOut ? 'timeout' : 'prepare_error'
+    });
+  } finally {
+    window.clearTimeout(timeout);
+    prepareAbortController = null;
+  }
 }
 
 pasteBtn.addEventListener('click', async () => {
@@ -220,6 +298,14 @@ form.addEventListener('submit', async (event) => {
     showMessage('Paste a TikTok or Instagram video link first.');
     return;
   }
+
+  if (prepareAbortController) {
+    prepareAbortController.abort();
+    prepareAbortController = null;
+  }
+  downloadBusy = false;
+  clearPrepareTimer();
+  resetActionButtons();
 
   setLoading(true);
   try {
