@@ -6,10 +6,12 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 
 import yt_dlp
 from yt_dlp.utils import DownloadError
+
+Platform = Literal["tiktok", "instagram"]
 
 
 class DownloaderError(RuntimeError):
@@ -78,7 +80,7 @@ def _format_score(fmt: dict[str, Any]) -> tuple[int, float, int, int]:
 
 
 def choose_clean_format(formats: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
-    """Pick the best progressive non-watermarked format we can identify."""
+    """Pick the best progressive non-watermarked TikTok format we can identify."""
     candidates = [
         f
         for f in formats
@@ -89,60 +91,84 @@ def choose_clean_format(formats: Iterable[dict[str, Any]]) -> dict[str, Any] | N
     return max(candidates, key=_format_score)
 
 
-def _safe_name(title: str | None, video_id: str | None, ext: str) -> str:
-    raw = (title or "tiktok-video").strip()
+def _platform_from_info(info: dict[str, Any]) -> Platform:
+    extractor = str(info.get("extractor_key") or info.get("extractor") or "").lower()
+    if "tiktok" in extractor:
+        return "tiktok"
+    if "instagram" in extractor:
+        return "instagram"
+    raise DownloaderError("The link did not resolve to a supported TikTok or Instagram video.")
+
+
+def _has_downloadable_video(info: dict[str, Any]) -> bool:
+    formats = info.get("formats") or []
+    if any(_is_video_format(fmt) for fmt in formats):
+        return True
+    # Some extractors expose a direct video URL without a formats list.
+    return bool(info.get("url") and info.get("vcodec") not in (None, "none"))
+
+
+def _reject_unsupported_instagram_content(info: dict[str, Any]) -> None:
+    # Carousels/multi-posts are deliberately excluded in the first release.
+    entries = info.get("entries")
+    if entries:
+        raise DownloaderError(
+            "Instagram carousel posts are not supported yet. Paste a single public Reel or video post."
+        )
+    if not _has_downloadable_video(info):
+        raise DownloaderError(
+            "This Instagram post does not contain a downloadable video. Image-only posts are not supported."
+        )
+
+
+def _safe_name(title: str | None, media_id: str | None, ext: str, platform: Platform) -> str:
+    fallback = "instagram-video" if platform == "instagram" else "tiktok-video"
+    raw = (title or fallback).strip()
     raw = re.sub(r"[^A-Za-z0-9._ -]+", "", raw)
     raw = re.sub(r"\s+", " ", raw).strip(" ._-")
     if not raw:
-        raw = "tiktok-video"
+        raw = fallback
     raw = raw[:70]
-    suffix = f"-{video_id}" if video_id else ""
+    suffix = f"-{media_id}" if media_id else ""
     return f"{raw}{suffix}.{ext}"
 
 
+def _thumbnail(info: dict[str, Any]) -> str | None:
+    thumbnail = info.get("thumbnail")
+    if thumbnail:
+        return str(thumbnail)
+    thumbs = info.get("thumbnails") or []
+    if thumbs:
+        return thumbs[-1].get("url")
+    return None
+
+
 def extract_metadata(url: str, max_duration_seconds: int) -> dict[str, Any]:
-    opts = _base_opts()
-    opts["skip_download"] = True
+    info, platform = _extract_raw(url, max_duration_seconds=max_duration_seconds)
+    formats = info.get("formats") or []
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except DownloadError as exc:
-        raise DownloaderError(_friendly_error(str(exc))) from exc
-    except Exception as exc:  # keep client-facing errors generic
-        raise DownloaderError("TikTok could not be reached for this link right now.") from exc
-
-    if not info:
-        raise DownloaderError("No video information was returned for this TikTok link.")
-
-    extractor = str(info.get("extractor_key") or info.get("extractor") or "").lower()
-    if "tiktok" not in extractor:
-        raise DownloaderError("The link did not resolve to a TikTok video.")
+    if platform == "instagram":
+        _reject_unsupported_instagram_content(info)
+        clean = None
+        default_title = "Instagram video"
+        default_author = "Instagram creator"
+    else:
+        clean = choose_clean_format(formats)
+        default_title = "TikTok video"
+        default_author = "TikTok creator"
 
     duration = int(info.get("duration") or 0)
-    if duration and duration > max_duration_seconds:
-        raise DownloaderError(
-            f"This video is longer than the server limit of {max_duration_seconds // 60} minutes."
-        )
-
-    formats = info.get("formats") or []
-    clean = choose_clean_format(formats)
-
-    thumbnail = info.get("thumbnail")
-    if not thumbnail:
-        thumbs = info.get("thumbnails") or []
-        if thumbs:
-            thumbnail = thumbs[-1].get("url")
-
     return {
         "id": str(info.get("id") or ""),
-        "title": info.get("title") or info.get("description") or "TikTok video",
+        "platform": platform,
+        "platform_label": "Instagram" if platform == "instagram" else "TikTok",
+        "title": info.get("title") or info.get("description") or default_title,
         "description": info.get("description") or "",
-        "author": info.get("uploader") or info.get("creator") or info.get("channel") or "TikTok creator",
+        "author": info.get("uploader") or info.get("creator") or info.get("channel") or default_author,
         "duration": duration,
-        "thumbnail": thumbnail,
+        "thumbnail": _thumbnail(info),
         "webpage_url": info.get("webpage_url") or url,
-        "clean_available": clean is not None,
+        "clean_available": platform == "tiktok" and clean is not None,
         "clean_format_id": clean.get("format_id") if clean else None,
         "clean_resolution": (
             f"{clean.get('width')}x{clean.get('height')}"
@@ -158,12 +184,15 @@ def download_media(
     kind: str,
     max_duration_seconds: int,
 ) -> DownloadArtifact:
-    # Resolve once so we can deliberately select a clean stream rather than
-    # depending on a site's changing default format order.
-    info = _extract_raw(url, max_duration_seconds=max_duration_seconds)
+    # Resolve once so TikTok can deliberately select a clean stream and both
+    # platforms can be validated before any server-side file is created.
+    info, platform = _extract_raw(url, max_duration_seconds=max_duration_seconds)
+    if platform == "instagram":
+        _reject_unsupported_instagram_content(info)
+
     temp_dir = Path(tempfile.mkdtemp(prefix="snipivo-"))
-    video_id = str(info.get("id") or "")
-    title = info.get("title") or info.get("description") or "tiktok-video"
+    media_id = str(info.get("id") or "")
+    title = info.get("title") or info.get("description")
 
     try:
         opts = _base_opts()
@@ -171,6 +200,10 @@ def download_media(
         opts["outtmpl"] = str(temp_dir / "%(id)s.%(ext)s")
 
         if kind == "video-clean":
+            if platform != "tiktok":
+                raise CleanStreamUnavailable(
+                    "The clean-stream option is only available for supported TikTok videos."
+                )
             clean = choose_clean_format(info.get("formats") or [])
             if not clean:
                 raise CleanStreamUnavailable(
@@ -181,9 +214,15 @@ def download_media(
             target_ext = "mp4"
             media_type = "video/mp4"
         elif kind == "video-best":
-            # Prefer a progressive MP4 but allow yt-dlp to fall back when TikTok
-            # exposes a different set of formats for a particular post.
-            opts["format"] = "best[ext=mp4]/best"
+            if platform == "instagram":
+                # Prefer a ready-to-download progressive MP4. When Instagram
+                # exposes separate streams, yt-dlp/FFmpeg can merge them.
+                opts["format"] = (
+                    "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+                    "bestvideo+bestaudio/best"
+                )
+            else:
+                opts["format"] = "best[ext=mp4]/best"
             opts["merge_output_format"] = "mp4"
             target_ext = "mp4"
             media_type = "video/mp4"
@@ -205,7 +244,7 @@ def download_media(
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.download([url])
         except DownloadError as exc:
-            raise DownloaderError(_friendly_error(str(exc))) from exc
+            raise DownloaderError(_friendly_error(str(exc), platform)) from exc
 
         files = [
             p
@@ -224,45 +263,61 @@ def download_media(
             path=final_path,
             temp_dir=temp_dir,
             media_type=media_type,
-            download_name=_safe_name(str(title), video_id, target_ext),
+            download_name=_safe_name(str(title) if title else None, media_id, target_ext, platform),
         )
     except Exception:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
 
 
-def _extract_raw(url: str, max_duration_seconds: int) -> dict[str, Any]:
+def _extract_raw(url: str, max_duration_seconds: int) -> tuple[dict[str, Any], Platform]:
     opts = _base_opts()
     opts["skip_download"] = True
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as exc:
-        raise DownloaderError(_friendly_error(str(exc))) from exc
+        # At this point the platform can usually be inferred from the URL, even
+        # when the remote site rejects the extraction before metadata is returned.
+        platform: Platform = "instagram" if "instagram.com" in url.lower() or "instagr.am" in url.lower() else "tiktok"
+        raise DownloaderError(_friendly_error(str(exc), platform)) from exc
+    except Exception as exc:
+        platform = "instagram" if "instagram.com" in url.lower() or "instagr.am" in url.lower() else "tiktok"
+        label = "Instagram" if platform == "instagram" else "TikTok"
+        raise DownloaderError(f"{label} could not be reached for this link right now.") from exc
 
     if not info:
-        raise DownloaderError("No video information was returned for this TikTok link.")
+        raise DownloaderError("No video information was returned for this link.")
 
-    extractor = str(info.get("extractor_key") or info.get("extractor") or "").lower()
-    if "tiktok" not in extractor:
-        raise DownloaderError("The link did not resolve to a TikTok video.")
+    platform = _platform_from_info(info)
 
     duration = int(info.get("duration") or 0)
     if duration and duration > max_duration_seconds:
         raise DownloaderError(
             f"This video is longer than the server limit of {max_duration_seconds // 60} minutes."
         )
-    return info
+    return info, platform
 
 
-def _friendly_error(message: str) -> str:
+def _friendly_error(message: str, platform: Platform) -> str:
     lower = message.lower()
-    if "private" in lower or "login" in lower or "sign in" in lower:
-        return "This video is private or requires a TikTok login. Only public videos are supported."
-    if "not available" in lower or "video not found" in lower or "status code 10216" in lower:
-        return "This TikTok video is unavailable, deleted, region-restricted, or not public."
+    label = "Instagram" if platform == "instagram" else "TikTok"
+
+    if "private" in lower or "login" in lower or "sign in" in lower or "cookies" in lower:
+        return f"This {label} post is private or requires login. Only public videos are supported."
+    if (
+        "not available" in lower
+        or "video not found" in lower
+        or "status code 10216" in lower
+        or "404" in lower
+    ):
+        return f"This {label} video is unavailable, deleted, region-restricted, or not public."
     if "unsupported url" in lower:
+        if platform == "instagram":
+            return "That Instagram URL format is not supported. Use a public Reel or video-post link."
         return "That TikTok URL format is not supported."
-    if "too many requests" in lower or "429" in lower:
-        return "TikTok is rate-limiting this server. Try again shortly."
-    return "TikTok could not provide this video right now. The link may be unavailable or temporarily blocked."
+    if "too many requests" in lower or "429" in lower or "rate-limit" in lower or "rate limit" in lower:
+        return f"{label} is rate-limiting this server. Try again shortly."
+    if platform == "instagram" and ("image" in lower or "photo" in lower):
+        return "This Instagram post does not contain a downloadable video."
+    return f"{label} could not provide this video right now. The link may be unavailable or temporarily blocked."

@@ -1,20 +1,22 @@
 # Snipivo
 
-A full-stack TikTok downloader for **public videos that the user is allowed to save**.
+A FastAPI + yt-dlp downloader for **permitted public TikTok and Instagram videos**.
 
 ## What it does
 
-- Paste a TikTok full URL or common TikTok short/share URL.
+- Accept TikTok full URLs and common TikTok short/share URLs.
+- Accept public Instagram Reels and single public Instagram video-post URLs.
+- Detect the platform automatically.
 - Resolve public video metadata and thumbnail.
-- Prefer a progressive public stream that is **not identified as watermarked**.
-- Offer a best-available MP4 fallback.
-- Offer MP3 extraction through FFmpeg.
-- Refuse private/login-only content rather than using TikTok account cookies.
+- For TikTok, offer a clean public stream when one can be identified, plus best-available MP4 and MP3.
+- For Instagram, offer best-available MP4 and MP3 for supported public video posts/Reels.
+- Refuse private/login-only content rather than asking for social-account credentials or cookies.
+- Reject Instagram profiles, stories, image-only posts, and carousels in this release.
 - Delete temporary media after each response.
-- Restrict server-side fetching to TikTok hostnames.
-- Include basic API rate limiting and download concurrency limits.
+- Restrict server-side fetching to a narrow allow-list of TikTok and Instagram hostnames.
+- Include API rate limiting, download concurrency limits, and repeated-click protection in the frontend.
 
-> Important: TikTok changes its delivery layer regularly. No third-party downloader can honestly guarantee every public post will work forever. Keep `yt-dlp` current, and test after TikTok changes. This project intentionally does not bypass private videos, login gates, DRM, or access controls.
+> Important: TikTok and Instagram change their delivery layers and anti-bot systems regularly. No third-party downloader can guarantee every public post will work forever. Keep `yt-dlp` current and test after platform changes. Snipivo intentionally does not bypass private posts, login gates, DRM, or access controls.
 
 ## Quick start with Docker
 
@@ -51,9 +53,9 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Keeping TikTok extraction current
+## Keeping extraction current
 
-The project requires yt-dlp 2026.08.19 or newer and installs its `curl-cffi` impersonation extra. Update it when TikTok changes:
+The project requires yt-dlp 2026.08.19 or newer and installs its `curl-cffi` impersonation extra.
 
 ```bash
 pip install -U --pre "yt-dlp[default,curl-cffi]"
@@ -70,26 +72,28 @@ docker compose up -d
 
 ### `POST /api/resolve`
 
-Body:
+TikTok example:
 
 ```json
 {"url":"https://www.tiktok.com/@creator/video/123"}
 ```
 
-Returns video metadata plus `clean_available`.
+Instagram example:
+
+```json
+{"url":"https://www.instagram.com/reel/ABC123/"}
+```
+
+The response includes `platform`, `platform_label`, video metadata, and TikTok `clean_available` information.
 
 ### `GET /api/download`
 
 Parameters:
 
-- `url` — TikTok URL
+- `url` — supported TikTok or Instagram video URL
 - `kind` — `video-clean`, `video-best`, or `audio-mp3`
 
-Example:
-
-```text
-/api/download?kind=video-clean&url=https%3A%2F%2Fwww.tiktok.com%2F...
-```
+`video-clean` is TikTok-only. Instagram supports `video-best` and `audio-mp3`.
 
 ## Production deployment
 
@@ -102,12 +106,10 @@ Internet
   -> Snipivo Docker container
 ```
 
-For a public service, also add:
+For a public service, also consider:
 
 - Persistent distributed rate limiting (Redis) if running multiple replicas.
 - Abuse monitoring and bandwidth limits.
-- A privacy policy and terms page.
-- Copyright/takedown contact information appropriate to your jurisdiction.
 - Server metrics and error monitoring.
 - A queue/object-storage design if traffic becomes high enough that proxying downloads through one app server is expensive.
 
@@ -124,45 +126,38 @@ Copy `.env.example` and tune as needed.
 
 ## Clean-stream logic
 
-TikTok often exposes more than one media format. The project does **not** edit video frames to erase a watermark. Instead it selects a public stream that is not labelled or signalled as watermarked. If only a branded stream is available, the UI disables the "Without watermark" button.
+TikTok often exposes more than one media format. Snipivo does **not** edit video frames to erase a watermark. It only labels a TikTok option as clean when the public format signals indicate a non-watermarked stream. Instagram does not show a separate "Without watermark" button.
 
 ## Analytics
 
-The production frontend includes Google Analytics 4 measurement ID `G-EDY1BTVYY9`. In addition to standard page-view/enhanced-measurement data, the frontend emits these custom events without sending TikTok URLs, creator names, or other video metadata to Analytics:
+The production frontend includes Google Analytics 4 measurement ID `G-EDY1BTVYY9`. Custom events do not intentionally include submitted URLs, creator names, or video titles.
 
-- `video_resolved`
+TikTok/general events:
+
+- `video_resolved` with a `platform` parameter
 - `download_clean`
 - `download_mp4`
 - `download_mp3`
-- `download_failed` (currently records resolve-stage failures)
+- `download_failed`
 
-Before promoting the site broadly, publish an appropriate privacy/cookie notice and configure consent handling where legally required.
+Instagram-specific events:
 
-## Trust, legal, and SEO pages
+- `instagram_resolved`
+- `download_instagram_mp4`
+- `download_instagram_mp3`
 
-The production frontend includes these public pages:
+## Trust, legal, SEO, and IndexNow
 
-- `/about/`
-- `/faq/`
-- `/privacy/`
-- `/terms/`
-- `/copyright/`
-- `/contact/`
+The production frontend includes About, FAQ, Privacy, Terms, Copyright, Contact, and guide pages. The sitemap includes the TikTok pages plus:
 
-The sitemap contains all public pages and `robots.txt` points search engines to `https://snipivo.online/sitemap.xml`. The public contact address used by the pages is `support@snipivo.online`; configure that address as a working mailbox or forwarding alias before promoting the site.
+- `/instagram-video-downloader/`
+- `/instagram-reels-downloader/`
 
-For EEA/UK ad monetization later, configure an appropriate consent-management solution before enabling personalized advertising. Google AdSense may require a Google-certified CMP depending on audience and product configuration.
+The IndexNow key file and submission helper are included without removing the working frontend assets:
 
+```bash
+python scripts/submit_indexnow.py --url https://snipivo.online/instagram-video-downloader/
+python scripts/submit_indexnow.py --url https://snipivo.online/instagram-reels-downloader/
+```
 
-## SEO landing pages
-
-This release includes indexable, canonical guide pages for:
-
-- `/guides/`
-- `/tiktok-video-downloader/`
-- `/tiktok-video-downloader-without-watermark/`
-- `/tiktok-to-mp3/`
-- `/download-tiktok-video-iphone/`
-- `/download-tiktok-video-android/`
-
-The pages are linked internally from the homepage, use the existing GA4 tag, and are included in `sitemap.xml`.
+Do not repeatedly submit unchanged URLs.

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from .downloader import CleanStreamUnavailable, DownloaderError, download_media, extract_metadata
-from .security import validate_tiktok_url
+from .security import validate_media_url
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -38,7 +38,7 @@ class ResolveRequest(BaseModel):
 
 app = FastAPI(
     title="Snipivo",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/api/docs" if os.getenv("ENABLE_DOCS", "0") == "1" else None,
     redoc_url=None,
 )
@@ -70,19 +70,23 @@ async def security_and_rate_limit(request: Request, call_next):
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "service": "snipivo"}
+    return {"ok": True, "service": "snipivo", "platforms": ["tiktok", "instagram"]}
 
 
 @app.post("/api/resolve")
 async def resolve_video(body: ResolveRequest):
     try:
-        url = validate_tiktok_url(body.url)
+        url, platform = validate_media_url(body.url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
         async with info_semaphore:
             info = await run_in_threadpool(extract_metadata, url, MAX_DURATION_SECONDS)
+        # Keep the URL-derived platform only as a consistency check. The
+        # downloader also verifies the actual extractor returned by yt-dlp.
+        if info.get("platform") != platform:
+            raise DownloaderError("The link resolved to an unexpected platform.")
         return info
     except DownloaderError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -94,9 +98,15 @@ async def download(
     kind: str = Query(pattern="^(video-clean|video-best|audio-mp3)$"),
 ):
     try:
-        clean_url = validate_tiktok_url(url)
+        clean_url, platform = validate_media_url(url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if platform == "instagram" and kind == "video-clean":
+        raise HTTPException(
+            status_code=400,
+            detail="The clean-stream option is only available for supported TikTok videos.",
+        )
 
     try:
         async with download_semaphore:
