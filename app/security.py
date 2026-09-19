@@ -30,7 +30,7 @@ INSTAGRAM_VIDEO_PREFIXES = ("/reel/", "/reels/", "/p/", "/tv/", "/share/reel/", 
 def _basic_url_checks(raw_url: str) -> tuple[str, str, str]:
     url = (raw_url or "").strip()
     if not url:
-        raise ValueError("Paste a TikTok or Instagram video URL.")
+        raise ValueError("Paste a TikTok or Instagram post URL.")
 
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
@@ -38,7 +38,7 @@ def _basic_url_checks(raw_url: str) -> tuple[str, str, str]:
 
     host = (parsed.hostname or "").lower().rstrip(".")
     if not host:
-        raise ValueError("Invalid video URL.")
+        raise ValueError("Invalid media URL.")
 
     if parsed.username or parsed.password:
         raise ValueError("URLs containing credentials are not allowed.")
@@ -61,7 +61,7 @@ def validate_tiktok_url(raw_url: str) -> str:
 
 
 def validate_instagram_url(raw_url: str) -> str:
-    """Validate a public Instagram Reel/video-post URL.
+    """Validate a public Instagram Reel/post URL.
 
     Snipivo intentionally accepts only single-post style paths. Profiles,
     stories, login pages, and arbitrary Instagram routes are not accepted.
@@ -74,7 +74,7 @@ def validate_instagram_url(raw_url: str) -> str:
     path_lower = path.lower()
     if not path_lower.startswith(INSTAGRAM_VIDEO_PREFIXES):
         raise ValueError(
-            "Paste a public Instagram Reel or video post link (for example /reel/... or /p/...)."
+            "Paste a public Instagram Reel or post link (for example /reel/... or /p/...)."
         )
 
     return url

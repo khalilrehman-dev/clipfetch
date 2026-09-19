@@ -1,12 +1,20 @@
-Snipivo TikTok + Instagram V1.4
+Snipivo TikTok + Instagram V1.5
 
-Fixes in this release:
-- One-tap download flow: after the user chooses Clean / MP4 / MP3, Snipivo prepares the file and automatically hands it to the browser download manager.
-- Removes the extra "Ready — tap to save" step on iPhone/iPad.
-- Applies to both TikTok and Instagram download options.
-- Keeps prepared download URLs valid briefly so Safari/Chrome can retry or use range requests without getting a false expired/used error.
-- Preserves V1.3 cache busting and no-cache frontend headers.
-- Bumps frontend/backend troubleshooting version to 1.4.0.
+New in this release:
+- Adds best-effort public image support while preserving the stable V1.4 one-click download flow.
+- Instagram single-image posts: Download image.
+- Instagram supported image carousels: Download all images as ZIP.
+- TikTok supported photo-mode/slideshow posts: Download image(s), with multi-image posts packaged as ZIP.
+- Automatic media-type detection: video / image / carousel.
+- New GA4 image-resolution and image-download events.
+- New SEO pages for Instagram photos and TikTok photos.
+- Sitemap updated.
+- Keeps V1.4 cache busting and no-cache frontend delivery.
 
-Expected flow:
-Paste link -> resolve -> choose format once -> Preparing -> browser download starts automatically.
+Expected flows:
+Video: Paste link -> resolve -> choose MP4/MP3/Clean -> Preparing -> automatic browser download.
+Image: Paste link -> resolve -> Download image -> Preparing -> automatic browser download.
+Carousel: Paste link -> resolve -> Download all images -> ZIP -> automatic browser download.
+
+Important:
+Image support is best effort because TikTok/Instagram may not expose every public image post to an unauthenticated server. Snipivo does not use user passwords/cookies to bypass login gates.

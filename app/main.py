@@ -39,7 +39,7 @@ class ResolveRequest(BaseModel):
 
 class PrepareDownloadRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
-    kind: str = Field(pattern=r"^(video-clean|video-best|audio-mp3)$")
+    kind: str = Field(pattern=r"^(video-clean|video-best|audio-mp3|image-single|images-zip)$")
 
 
 PREPARED_TTL_SECONDS = int(os.getenv("PREPARED_TTL_SECONDS", "300"))
@@ -68,7 +68,7 @@ async def _expire_prepared_later(token: str) -> None:
 
 app = FastAPI(
     title="Snipivo",
-    version="1.4.0",
+    version="1.5.0",
     docs_url="/api/docs" if os.getenv("ENABLE_DOCS", "0") == "1" else None,
     redoc_url=None,
 )
@@ -111,13 +111,13 @@ async def security_and_rate_limit(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
 
-    response.headers["X-Snipivo-Version"] = "1.4.0"
+    response.headers["X-Snipivo-Version"] = "1.5.0"
     return response
 
 
 @app.get("/api/health")
 async def health():
-    return {"ok": True, "service": "snipivo", "platforms": ["tiktok", "instagram"]}
+    return {"ok": True, "service": "snipivo", "platforms": ["tiktok", "instagram"], "media": ["video", "audio", "images", "carousels"]}
 
 
 @app.post("/api/resolve")
@@ -204,7 +204,7 @@ async def prepared_download(token: str):
 @app.get("/api/download")
 async def download(
     url: str = Query(min_length=8, max_length=2048),
-    kind: str = Query(pattern="^(video-clean|video-best|audio-mp3)$"),
+    kind: str = Query(pattern="^(video-clean|video-best|audio-mp3|image-single|images-zip)$"),
 ):
     try:
         clean_url, platform = validate_media_url(url)

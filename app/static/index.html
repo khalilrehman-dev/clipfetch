@@ -12,25 +12,25 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#09090b" />
-  <meta name="description" content="Snipivo helps you save permitted public TikTok and Instagram videos as MP4 or MP3, with clean TikTok streams when available. Fast, simple, and no account required." />
+  <meta name="description" content="Snipivo helps you save permitted public TikTok and Instagram media, including videos, MP3 audio, photos, and supported image carousels. Fast, simple, and no account required." />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <link rel="canonical" href="https://snipivo.online/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Snipivo" />
-  <meta property="og:title" content="Snipivo — TikTok & Instagram Video Downloader" />
-  <meta property="og:description" content="Save permitted public TikTok and Instagram videos as MP4 or MP3, with clean TikTok streams when available." />
+  <meta property="og:title" content="Snipivo — TikTok & Instagram Media Downloader" />
+  <meta property="og:description" content="Save permitted public TikTok and Instagram videos, MP3 audio, photos, and supported image carousels." />
   <meta property="og:url" content="https://snipivo.online/" />
   <meta name="twitter:card" content="summary" />
-  <title>Snipivo — TikTok & Instagram Video Downloader</title>
+  <title>Snipivo — TikTok & Instagram Media Downloader</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=1.4.0" />
+  <link rel="stylesheet" href="/styles.css?v=1.5.0" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "Snipivo",
     "url": "https://snipivo.online/",
-    "description": "Snipivo helps users save permitted public TikTok and Instagram videos as MP4 or MP3, with clean TikTok streams when available."
+    "description": "Snipivo helps users save permitted public TikTok and Instagram videos, MP3 audio, photos, and supported image carousels."
   }
   </script>
 </head>
@@ -43,25 +43,25 @@
       </span>
       <span>Snipivo</span>
     </a>
-    <div class="nav-pill">TikTok + Instagram · Public videos only</div>
+    <div class="nav-pill">TikTok + Instagram · Public media only</div>
   </header>
 
   <main>
     <section class="hero shell">
       <div class="eyebrow"><span></span> TikTok + Instagram · Fast · No account required</div>
-      <h1>Save the videos<br/><span>you’re allowed to keep.</span></h1>
-      <p class="lede">Paste a public TikTok or Instagram link. Snipivo detects the platform and gives you the video and MP3 options that are actually available.</p>
+      <h1>Save the media<br/><span>you’re allowed to keep.</span></h1>
+      <p class="lede">Paste a public TikTok or Instagram link. Snipivo detects videos, audio, photos, and supported carousels, then shows the download options actually available.</p>
 
       <div class="platform-chips" aria-label="Supported platforms">
-        <span class="platform-chip">TikTok</span>
-        <span class="platform-chip instagram">Instagram Reels</span>
-        <span class="platform-chip">Instagram video posts</span>
+        <span class="platform-chip">TikTok video + photos</span>
+        <span class="platform-chip instagram">Instagram Reels + photos</span>
+        <span class="platform-chip">Image carousels</span>
       </div>
 
       <form id="downloadForm" class="download-box" novalidate>
         <div class="input-wrap">
           <svg class="link-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.4 13.6a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.7 1.7"/><path d="M13.6 10.4a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.7-1.7"/></svg>
-          <input id="videoUrl" type="url" autocomplete="off" spellcheck="false" placeholder="Paste TikTok or Instagram link here…" aria-label="TikTok or Instagram video URL" required />
+          <input id="videoUrl" type="url" autocomplete="off" spellcheck="false" placeholder="Paste TikTok or Instagram link here…" aria-label="TikTok or Instagram post URL" required />
           <button id="pasteBtn" type="button" class="paste-btn">Paste</button>
         </div>
         <button id="fetchBtn" class="primary-btn" type="submit">
@@ -74,7 +74,7 @@
 
       <section id="result" class="result-card hidden" aria-live="polite">
         <div class="media-preview">
-          <img id="thumb" alt="Video thumbnail" />
+          <img id="thumb" alt="Media preview" />
           <div class="duration" id="duration"></div>
         </div>
         <div class="result-content">
@@ -102,7 +102,7 @@
               <span><strong>Download MP3</strong><small>192 kbps audio</small></span>
             </button>
           </div>
-          <p class="rights-note">Only download content you own or have permission to save. Private/login-only posts are not supported. Instagram image-only and carousel posts are not supported in this version.</p>
+          <p class="rights-note">Only download content you own or have permission to save. Private/login-only posts are not supported. Image availability depends on what the public post exposes.</p>
         </div>
       </section>
     </section>
@@ -110,22 +110,24 @@
     <section class="how shell">
       <div class="section-label">How it works</div>
       <div class="steps">
-        <article><span>01</span><h3>Copy the link</h3><p>Open a public TikTok or Instagram Reel/video post and copy its share URL.</p></article>
-        <article><span>02</span><h3>Paste & resolve</h3><p>Snipivo detects the platform and checks the public media formats exposed for that post.</p></article>
-        <article><span>03</span><h3>Choose a format</h3><p>Download MP4 or MP3. TikTok also shows a clean stream when one is publicly available.</p></article>
+        <article><span>01</span><h3>Copy the link</h3><p>Open a public TikTok or Instagram video, photo, Reel, or supported carousel and copy its share URL.</p></article>
+        <article><span>02</span><h3>Paste & resolve</h3><p>Snipivo detects the platform and whether the public post contains video or images.</p></article>
+        <article><span>03</span><h3>Choose a format</h3><p>Download MP4 or MP3 for videos, or download photos individually or as a ZIP for supported multi-image posts.</p></article>
       </div>
     </section>
 
     <section class="guides-home shell">
       <div class="section-label">Guides & tools</div>
       <div class="guides-heading">
-        <div><h2>Explore Snipivo guides</h2><p>Learn how to save permitted public TikTok and Instagram media on your device.</p></div>
+        <div><h2>Explore Snipivo guides</h2><p>Learn how to save permitted public TikTok and Instagram videos and images on your device.</p></div>
         <a class="guide-secondary" href="/guides/">View all guides</a>
       </div>
       <div class="guide-grid">
         <a class="guide-tile" href="/tiktok-video-downloader/"><span>TikTok</span><strong>TikTok video downloader</strong><p>Understand public-link resolving, MP4, and supported posts.</p></a>
         <a class="guide-tile" href="/instagram-reels-downloader/"><span>Instagram</span><strong>Instagram Reels downloader</strong><p>Save permitted public Reels as video or MP3.</p></a>
         <a class="guide-tile" href="/instagram-video-downloader/"><span>Instagram</span><strong>Instagram video downloader</strong><p>Use public video-post links without signing in.</p></a>
+        <a class="guide-tile" href="/instagram-photo-downloader/"><span>Instagram</span><strong>Instagram photo downloader</strong><p>Save supported public photos and image carousels.</p></a>
+        <a class="guide-tile" href="/tiktok-photo-downloader/"><span>TikTok</span><strong>TikTok photo downloader</strong><p>Save supported public photo-mode posts.</p></a>
         <a class="guide-tile" href="/tiktok-video-downloader-without-watermark/"><span>Clean stream</span><strong>TikTok without watermark</strong><p>See how Snipivo handles clean streams without editing pixels.</p></a>
         <a class="guide-tile" href="/tiktok-to-mp3/"><span>Audio</span><strong>TikTok to MP3</strong><p>Extract audio from permitted public media.</p></a>
         <a class="guide-tile" href="/download-tiktok-video-iphone/"><span>iPhone</span><strong>iPhone download guide</strong><p>Use Safari and find your downloaded file.</p></a>
@@ -135,10 +137,10 @@
     <section class="faq shell">
       <div class="section-label">Good to know</div>
       <div class="faq-grid">
-        <article><h3>Which Instagram links work?</h3><p>Public Reels and single public video posts are supported. Private/login-only posts, image-only posts, carousels, profiles, and stories are not supported in this version.</p></article>
+        <article><h3>Which Instagram links work?</h3><p>Public Reels, public video posts, single-image posts, and supported image carousels can work. Private/login-only posts, profiles, and stories are not supported.</p></article>
         <article><h3>Does TikTok “clean” remove a watermark from pixels?</h3><p>No. Snipivo only offers that option when TikTok itself exposes a suitable public clean stream. It does not edit, blur, crop, or paint over watermarks.</p></article>
         <article><h3>Why can a public link fail sometimes?</h3><p>TikTok and Instagram can change delivery systems, require login for some posts, or rate-limit servers. Snipivo shows a clear error rather than requesting your social account password.</p></article>
-        <article><h3>Are videos stored permanently?</h3><p>No. Downloads are created in a temporary server folder and deleted after the response is sent.</p></article>
+        <article><h3>Are downloads stored permanently?</h3><p>No. Prepared videos, audio, and image ZIPs are kept only temporarily and expire automatically.</p></article>
       </div>
     </section>
   </main>
@@ -157,6 +159,6 @@
     <p>Not affiliated with or endorsed by TikTok, ByteDance, Instagram, or Meta.</p>
   </footer>
 
-  <script src="/app.js?v=1.4.0" defer></script>
+  <script src="/app.js?v=1.5.0" defer></script>
 </body>
 </html>

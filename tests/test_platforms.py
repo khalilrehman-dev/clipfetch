@@ -1,6 +1,12 @@
 import pytest
 
-from app.downloader import DownloaderError, _friendly_error, _platform_from_info, _reject_unsupported_instagram_content
+from app.downloader import (
+    DownloaderError,
+    _friendly_error,
+    _instagram_image_candidates,
+    _platform_from_info,
+    _unique_urls,
+)
 
 
 def test_detects_tiktok_extractor():
@@ -16,15 +22,24 @@ def test_rejects_unknown_extractor():
         _platform_from_info({"extractor_key": "Generic"})
 
 
-def test_rejects_instagram_image_only_post():
-    with pytest.raises(DownloaderError, match="does not contain a downloadable video"):
-        _reject_unsupported_instagram_content({"formats": []})
+def test_instagram_image_candidates_prefer_display_urls_and_dedupe_sizes():
+    html = r'''<meta property="og:image" content="https://scontent.cdninstagram.com/fallback.jpg?x=1">
+    <script>{"display_url":"https:\/\/scontent.cdninstagram.com\/a.jpg?x=1",
+    "display_url":"https:\/\/scontent.cdninstagram.com\/a.jpg?x=2",
+    "display_url":"https:\/\/scontent.cdninstagram.com\/b.jpg?x=3"}</script>'''
+    urls = _instagram_image_candidates(html)
+    assert len(urls) == 2
+    assert "/a.jpg" in urls[0]
+    assert "/b.jpg" in urls[1]
 
 
-def test_accepts_instagram_video_format():
-    _reject_unsupported_instagram_content(
-        {"formats": [{"format_id": "video", "vcodec": "h264", "acodec": "aac"}]}
-    )
+def test_unique_urls_ignore_query_variants():
+    urls = _unique_urls([
+        "https://p16.tiktokcdn.com/a.jpeg?width=720",
+        "https://p16.tiktokcdn.com/a.jpeg?width=1080",
+        "https://p16.tiktokcdn.com/b.jpeg?width=1080",
+    ])
+    assert len(urls) == 2
 
 
 def test_instagram_login_error_is_user_friendly():

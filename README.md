@@ -1,41 +1,29 @@
 # Snipivo
 
-## V1.4 cache-busting fix
+A FastAPI + yt-dlp downloader for **permitted public TikTok and Instagram media**.
 
-V1.4 forces browsers, including iPhone Safari/WebKit, to fetch the current frontend after deployment. The app now versions critical CSS/JS URLs and disables caching for HTML, `app.js`, and `styles.css`. This prevents old download logic from surviving across releases.
+## V1.5 media expansion
 
+V1.5 keeps the working TikTok/Instagram video flow from V1.4 and adds best-effort support for public image posts:
 
-A FastAPI + yt-dlp downloader for **permitted public TikTok and Instagram videos**.
+- TikTok public videos: clean stream when available, MP4, MP3.
+- Instagram public Reels/video posts: MP4, MP3.
+- Instagram public single-image posts: download the available image.
+- Instagram public image carousels: package supported exposed images into one ZIP.
+- TikTok public photo-mode posts/slideshows: package supported exposed images into one ZIP.
+- Automatic platform and media-type detection.
+- One-click prepared-download handoff remains in place; no second "tap to save" step.
+- V1.4 cache busting/no-cache headers remain in place for mobile browsers.
 
-## What it does
-
-- Accept TikTok full URLs and common TikTok short/share URLs.
-- Accept public Instagram Reels and single public Instagram video-post URLs.
-- Detect the platform automatically.
-- Resolve public video metadata and thumbnail.
-- For TikTok, offer a clean public stream when one can be identified, plus best-available MP4 and MP3.
-- For Instagram, offer best-available MP4 and MP3 for supported public video posts/Reels.
-- Refuse private/login-only content rather than asking for social-account credentials or cookies.
-- Reject Instagram profiles, stories, image-only posts, and carousels in this release.
-- Delete temporary media after each response.
-- Restrict server-side fetching to a narrow allow-list of TikTok and Instagram hostnames.
-- Include API rate limiting, download concurrency limits, and repeated-click protection in the frontend.
-
-> Important: TikTok and Instagram change their delivery layers and anti-bot systems regularly. No third-party downloader can guarantee every public post will work forever. Keep `yt-dlp` current and test after platform changes. Snipivo intentionally does not bypass private posts, login gates, DRM, or access controls.
+Image support is intentionally **best effort**. Instagram and TikTok can change what their public pages expose, require login for some posts, or rate-limit the server. Snipivo does not request social-account passwords/cookies to bypass access controls.
 
 ## Quick start with Docker
-
-Requirements: Docker Desktop / Docker Engine.
 
 ```bash
 docker compose up --build
 ```
 
-Open:
-
-```text
-http://localhost:8000
-```
+Open `http://localhost:8000`.
 
 Health check:
 
@@ -48,7 +36,7 @@ http://localhost:8000/api/health
 Requirements:
 
 - Python 3.11+
-- FFmpeg installed and available on PATH
+- FFmpeg on PATH
 
 ```bash
 python -m venv .venv
@@ -58,116 +46,76 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-## Keeping extraction current
-
-The project requires yt-dlp 2026.08.19 or newer and installs its `curl-cffi` impersonation extra.
-
-```bash
-pip install -U --pre "yt-dlp[default,curl-cffi]"
-```
-
-For Docker, rebuild after changing `requirements.txt`:
-
-```bash
-docker compose build --no-cache
-docker compose up -d
-```
-
 ## API
 
 ### `POST /api/resolve`
-
-TikTok example:
 
 ```json
 {"url":"https://www.tiktok.com/@creator/video/123"}
 ```
 
-Instagram example:
+or
 
 ```json
-{"url":"https://www.instagram.com/reel/ABC123/"}
+{"url":"https://www.instagram.com/p/ABC123/"}
 ```
 
-The response includes `platform`, `platform_label`, video metadata, and TikTok `clean_available` information.
+The response includes `platform`, `content_type` (`video`, `image`, or `carousel`), metadata, and `image_count` when applicable.
 
-### `GET /api/download`
+### `POST /api/prepare-download`
 
-Parameters:
+Supported `kind` values:
 
-- `url` — supported TikTok or Instagram video URL
-- `kind` — `video-clean`, `video-best`, or `audio-mp3`
-
-`video-clean` is TikTok-only. Instagram supports `video-best` and `audio-mp3`.
-
-## Production deployment
-
-Recommended layout:
-
-```text
-Internet
-  -> Cloudflare / CDN / WAF
-  -> Nginx or Caddy (HTTPS, request limits)
-  -> Snipivo Docker container
-```
-
-For a public service, also consider:
-
-- Persistent distributed rate limiting (Redis) if running multiple replicas.
-- Abuse monitoring and bandwidth limits.
-- Server metrics and error monitoring.
-- A queue/object-storage design if traffic becomes high enough that proxying downloads through one app server is expensive.
+- `video-clean` - TikTok video only, when a clean public stream exists.
+- `video-best` - best available MP4.
+- `audio-mp3` - MP3 audio.
+- `image-single` - a supported single image.
+- `images-zip` - supported images packaged in one ZIP.
 
 ## Environment variables
 
-Copy `.env.example` and tune as needed.
-
-- `MAX_DURATION_SECONDS` — maximum video duration (default 1200)
-- `INFO_CONCURRENCY` — simultaneous metadata resolutions (default 8)
-- `DOWNLOAD_CONCURRENCY` — simultaneous media jobs (default 3)
-- `RATE_LIMIT_REQUESTS` — API requests per window/IP (default 30)
-- `RATE_LIMIT_WINDOW_SECONDS` — rate-limit window (default 60)
-- `ENABLE_DOCS=1` — expose FastAPI Swagger docs at `/api/docs`
-
-## Clean-stream logic
-
-TikTok often exposes more than one media format. Snipivo does **not** edit video frames to erase a watermark. It only labels a TikTok option as clean when the public format signals indicate a non-watermarked stream. Instagram does not show a separate "Without watermark" button.
+- `MAX_DURATION_SECONDS` - maximum video duration, default `1200`.
+- `INFO_CONCURRENCY` - metadata resolutions, default `8`.
+- `DOWNLOAD_CONCURRENCY` - simultaneous media jobs, default `3`.
+- `RATE_LIMIT_REQUESTS` - API requests per rate-limit window/IP, default `30`.
+- `RATE_LIMIT_WINDOW_SECONDS` - default `60`.
+- `PREPARED_TTL_SECONDS` - prepared download lifetime, default `300`.
+- `MAX_IMAGE_ITEMS` - maximum image count per post, default `35`.
+- `MAX_IMAGE_BYTES` - maximum bytes per image, default `25 MiB`.
+- `MAX_IMAGE_TOTAL_BYTES` - maximum total image bytes before ZIP, default `120 MiB`.
+- `ENABLE_DOCS=1` - expose FastAPI docs at `/api/docs`.
 
 ## Analytics
 
-The production frontend includes Google Analytics 4 measurement ID `G-EDY1BTVYY9`. Custom events do not intentionally include submitted URLs, creator names, or video titles.
+The frontend uses GA4 measurement ID `G-EDY1BTVYY9` and avoids intentionally sending submitted post URLs/titles in custom event parameters.
 
-TikTok/general events:
+Video events include:
 
-- `video_resolved` with a `platform` parameter
+- `media_resolved`
+- `video_resolved`
 - `download_clean`
 - `download_mp4`
 - `download_mp3`
-- `download_failed`
-
-Instagram-specific events:
-
-- `instagram_resolved`
 - `download_instagram_mp4`
 - `download_instagram_mp3`
 
-## Trust, legal, SEO, and IndexNow
+Image events include:
 
-The production frontend includes About, FAQ, Privacy, Terms, Copyright, Contact, and guide pages. The sitemap includes the TikTok pages plus:
+- `image_post_resolved`
+- `download_instagram_image`
+- `download_instagram_images_zip`
+- `download_tiktok_image`
+- `download_tiktok_images_zip`
 
-- `/instagram-video-downloader/`
-- `/instagram-reels-downloader/`
+## SEO / IndexNow
 
-The IndexNow key file and submission helper are included without removing the working frontend assets:
+The sitemap includes the existing TikTok/Instagram video pages plus:
 
-```bash
-python scripts/submit_indexnow.py --url https://snipivo.online/instagram-video-downloader/
-python scripts/submit_indexnow.py --url https://snipivo.online/instagram-reels-downloader/
-```
+- `/instagram-photo-downloader/`
+- `/tiktok-photo-downloader/`
 
-Do not repeatedly submit unchanged URLs.
+Use IndexNow only after a page actually changes; do not repeatedly submit unchanged URLs.
 
-## V1.2 mobile download handoff
+## Safety / access boundaries
 
-The download flow now prepares files through `/api/prepare-download` and hands them to the browser using a short-lived `/api/prepared-download/{token}` URL. This replaces the old hidden-iframe handoff, which could appear stuck on iPhone/iPad Safari. iOS users see a clear **Ready - tap to save** state after preparation; desktop and Android attempt the handoff automatically.
-
+Snipivo accepts only allow-listed TikTok/Instagram post hosts and does not act as a general URL fetcher. Remote image downloads are additionally restricted to known TikTok/Instagram image CDN host families. Private/login-only content is not intentionally bypassed.

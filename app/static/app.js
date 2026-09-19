@@ -1,4 +1,4 @@
-const SNIPIVO_FRONTEND_VERSION = '1.4.0';
+const SNIPIVO_FRONTEND_VERSION = '1.5.0';
 const form = document.getElementById('downloadForm');
 const input = document.getElementById('videoUrl');
 const fetchBtn = document.getElementById('fetchBtn');
@@ -18,17 +18,23 @@ const cleanQuality = document.getElementById('cleanQuality');
 
 let currentUrl = '';
 let currentPlatform = 'tiktok';
+let currentContentType = 'video';
+let currentImageCount = 0;
 let cleanAvailable = false;
 let downloadBusy = false;
 let prepareElapsedTimer = null;
 let prepareAbortController = null;
 
 const actionButtons = [cleanBtn, bestBtn, audioBtn];
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function platformLabel() {
   return currentPlatform === 'instagram' ? 'Instagram' : 'TikTok';
+}
+
+function primaryKind() {
+  if (currentContentType === 'image') return 'image-single';
+  if (currentContentType === 'carousel') return 'images-zip';
+  return 'video-best';
 }
 
 function actionCopy(kind) {
@@ -47,6 +53,15 @@ function actionCopy(kind) {
   }
   if (kind === 'audio-mp3') {
     return { title: 'Download MP3', subtitle: '192 kbps audio' };
+  }
+  if (kind === 'image-single') {
+    return { title: 'Download image', subtitle: 'Original available image file' };
+  }
+  if (kind === 'images-zip') {
+    return {
+      title: 'Download all images',
+      subtitle: `${currentImageCount || 'All'} images in one ZIP`
+    };
   }
   return { title: 'Download', subtitle: '' };
 }
@@ -93,14 +108,25 @@ function restoreActionButton(button, kind) {
   if (small) small.textContent = copy.subtitle;
 }
 
-function resetActionButtons() {
+function configureActions() {
+  const isVideo = currentContentType === 'video';
+  const isImageMedia = currentContentType === 'image' || currentContentType === 'carousel';
+
+  cleanBtn.classList.toggle('hidden', !isVideo || currentPlatform === 'instagram');
+  audioBtn.classList.toggle('hidden', !isVideo);
+  bestBtn.classList.toggle('accent', isImageMedia);
+
   restoreActionButton(cleanBtn, 'video-clean');
-  restoreActionButton(bestBtn, 'video-best');
+  restoreActionButton(bestBtn, primaryKind());
   restoreActionButton(audioBtn, 'audio-mp3');
 
-  cleanBtn.disabled = currentPlatform !== 'tiktok' || !cleanAvailable;
+  cleanBtn.disabled = !isVideo || currentPlatform !== 'tiktok' || !cleanAvailable;
   bestBtn.disabled = false;
-  audioBtn.disabled = false;
+  audioBtn.disabled = !isVideo;
+}
+
+function resetActionButtons() {
+  configureActions();
 }
 
 function setDownloadBusy(active, activeButton = null) {
@@ -135,7 +161,7 @@ function setDownloadBusy(active, activeButton = null) {
     }
   }, 1000);
 
-  showMessage(`Preparing your ${platformLabel()} file. Keep this page open — Snipivo will tell you when it is ready.`, true);
+  showMessage(`Preparing your ${platformLabel()} file. Keep this page open — the download will start automatically.`, true);
 }
 
 function handoffPreparedDownload(button, kind, downloadUrl = null) {
@@ -145,13 +171,10 @@ function handoffPreparedDownload(button, kind, downloadUrl = null) {
   trackEvent('download_handoff', {
     format: kind,
     platform: currentPlatform,
-    ios: isIOS ? 'yes' : 'no',
+    content_type: currentContentType,
     automatic: 'yes'
   });
 
-  // Use a same-origin top-level navigation so the browser can hand the
-  // prepared attachment directly to its download manager. Unlike popup
-  // windows, location navigation does not require a second user click.
   window.location.assign(resolvedUrl);
   showMessage('Download started. Check your browser downloads or Files app if needed.', true);
 
@@ -161,27 +184,36 @@ function handoffPreparedDownload(button, kind, downloadUrl = null) {
   return true;
 }
 
-async function buildDownload(kind, button) {
-  if (!currentUrl) return;
-  if (currentPlatform === 'instagram' && kind === 'video-clean') return;
-
-  if (downloadBusy) return;
-
-  let eventName = 'download_started';
+function eventNameForDownload(kind) {
+  if (kind === 'image-single') {
+    return currentPlatform === 'instagram' ? 'download_instagram_image' : 'download_tiktok_image';
+  }
+  if (kind === 'images-zip') {
+    return currentPlatform === 'instagram' ? 'download_instagram_images_zip' : 'download_tiktok_images_zip';
+  }
   if (currentPlatform === 'instagram') {
-    eventName = {
+    return {
       'video-best': 'download_instagram_mp4',
       'audio-mp3': 'download_instagram_mp3'
-    }[kind] || eventName;
-  } else {
-    eventName = {
-      'video-clean': 'download_clean',
-      'video-best': 'download_mp4',
-      'audio-mp3': 'download_mp3'
-    }[kind] || eventName;
+    }[kind] || 'download_started';
   }
+  return {
+    'video-clean': 'download_clean',
+    'video-best': 'download_mp4',
+    'audio-mp3': 'download_mp3'
+  }[kind] || 'download_started';
+}
 
-  trackEvent(eventName, { format: kind, platform: currentPlatform });
+async function buildDownload(kind, button) {
+  if (!currentUrl || downloadBusy) return;
+  if (currentPlatform === 'instagram' && kind === 'video-clean') return;
+
+  trackEvent(eventNameForDownload(kind), {
+    format: kind,
+    platform: currentPlatform,
+    content_type: currentContentType,
+    image_count: currentImageCount
+  });
   setDownloadBusy(true, button);
 
   prepareAbortController = new AbortController();
@@ -217,13 +249,14 @@ async function buildDownload(kind, button) {
     const timedOut = error && error.name === 'AbortError';
     showMessage(
       timedOut
-        ? 'This download is taking too long. Please try once more or choose another format.'
+        ? 'This download is taking too long. Please try once more.'
         : (error.message || 'The download could not be prepared.'),
       false
     );
     trackEvent('download_failed', {
       stage: 'prepare',
       platform: currentPlatform,
+      content_type: currentContentType,
       format: kind,
       reason: timedOut ? 'timeout' : 'prepare_error'
     });
@@ -245,7 +278,7 @@ pasteBtn.addEventListener('click', async () => {
 });
 
 cleanBtn.addEventListener('click', () => buildDownload('video-clean', cleanBtn));
-bestBtn.addEventListener('click', () => buildDownload('video-best', bestBtn));
+bestBtn.addEventListener('click', () => buildDownload(primaryKind(), bestBtn));
 audioBtn.addEventListener('click', () => buildDownload('audio-mp3', audioBtn));
 
 form.addEventListener('submit', async (event) => {
@@ -255,7 +288,7 @@ form.addEventListener('submit', async (event) => {
   showMessage('');
 
   if (!url) {
-    showMessage('Paste a TikTok or Instagram video link first.');
+    showMessage('Paste a TikTok or Instagram post link first.');
     return;
   }
 
@@ -265,7 +298,6 @@ form.addEventListener('submit', async (event) => {
   }
   downloadBusy = false;
   clearPrepareTimer();
-  resetActionButtons();
 
   setLoading(true);
   try {
@@ -275,15 +307,19 @@ form.addEventListener('submit', async (event) => {
       body: JSON.stringify({ url })
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || 'Could not resolve this video.');
+    if (!response.ok) throw new Error(data.detail || 'Could not resolve this post.');
 
     currentUrl = url;
     currentPlatform = data.platform === 'instagram' ? 'instagram' : 'tiktok';
+    currentContentType = ['image', 'carousel'].includes(data.content_type) ? data.content_type : 'video';
+    currentImageCount = Number(data.image_count || 0);
 
     thumb.src = data.thumbnail || '';
     thumb.style.visibility = data.thumbnail ? 'visible' : 'hidden';
-    thumb.alt = `${platformLabel()} video thumbnail`;
-    title.textContent = data.title || `${platformLabel()} video`;
+    thumb.alt = currentContentType === 'video'
+      ? `${platformLabel()} video thumbnail`
+      : `${platformLabel()} image preview`;
+    title.textContent = data.title || `${platformLabel()} media`;
     author.textContent = data.author
       ? `@${String(data.author).replace(/^@/, '')}`
       : `${platformLabel()} creator`;
@@ -293,28 +329,54 @@ form.addEventListener('submit', async (event) => {
     platformBadge.textContent = platformLabel();
     platformBadge.classList.toggle('instagram', currentPlatform === 'instagram');
 
-    cleanAvailable = currentPlatform === 'tiktok' && Boolean(data.clean_available);
-    cleanBtn.classList.toggle('hidden', currentPlatform === 'instagram');
-    cleanBadge.classList.toggle('hidden', currentPlatform === 'instagram');
-    cleanBtn.disabled = !cleanAvailable;
-    cleanBadge.classList.toggle('off', !cleanAvailable);
-    cleanBadge.textContent = cleanAvailable ? 'Clean stream found' : 'Clean stream unavailable';
-    cleanQuality.textContent = cleanAvailable
-      ? (data.clean_resolution ? `${data.clean_resolution} · best clean stream` : 'Best clean stream')
-      : 'TikTok only exposed a branded stream';
+    cleanAvailable = currentContentType === 'video'
+      && currentPlatform === 'tiktok'
+      && Boolean(data.clean_available);
 
-    restoreActionButton(bestBtn, 'video-best');
-    restoreActionButton(audioBtn, 'audio-mp3');
+    if (currentContentType === 'video') {
+      cleanBadge.classList.toggle('hidden', currentPlatform === 'instagram');
+      cleanBadge.classList.toggle('off', !cleanAvailable);
+      cleanBadge.textContent = cleanAvailable ? 'Clean stream found' : 'Clean stream unavailable';
+      cleanQuality.textContent = cleanAvailable
+        ? (data.clean_resolution ? `${data.clean_resolution} · best clean stream` : 'Best clean stream')
+        : 'TikTok only exposed a branded stream';
+    } else {
+      cleanBadge.classList.remove('hidden', 'off');
+      cleanBadge.textContent = currentContentType === 'carousel'
+        ? `${currentImageCount} images`
+        : 'Image post';
+    }
 
+    configureActions();
     result.classList.remove('hidden');
-    showMessage(`${platformLabel()} video ready. Choose a download format.`, true);
 
-    trackEvent('video_resolved', {
+    const mediaDescription = currentContentType === 'carousel'
+      ? `${currentImageCount} images ready. Download them together as a ZIP.`
+      : currentContentType === 'image'
+        ? 'Image ready. Download the available original image.'
+        : 'Video ready. Choose a download format.';
+    showMessage(`${platformLabel()} ${mediaDescription}`, true);
+
+    trackEvent('media_resolved', {
       platform: currentPlatform,
+      content_type: currentContentType,
+      image_count: currentImageCount,
       clean_available: cleanAvailable ? 'yes' : 'no'
     });
+    if (currentContentType === 'video') {
+      trackEvent('video_resolved', {
+        platform: currentPlatform,
+        clean_available: cleanAvailable ? 'yes' : 'no'
+      });
+    } else {
+      trackEvent('image_post_resolved', {
+        platform: currentPlatform,
+        content_type: currentContentType,
+        image_count: currentImageCount
+      });
+    }
     if (currentPlatform === 'instagram') {
-      trackEvent('instagram_resolved', { content_type: 'video' });
+      trackEvent('instagram_resolved', { content_type: currentContentType });
     }
 
     result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
