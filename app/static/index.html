@@ -23,7 +23,7 @@
   <meta name="twitter:card" content="summary" />
   <title>Snipivo — TikTok & Instagram Media Downloader</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="stylesheet" href="/styles.css?v=1.5.0" />
+  <link rel="stylesheet" href="/styles.css?v=1.6.0" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -75,6 +75,10 @@
       <section id="result" class="result-card hidden" aria-live="polite">
         <div class="media-preview">
           <img id="thumb" alt="Media preview" />
+          <div id="previewFallback" class="preview-fallback" aria-hidden="true">
+            <span>▶</span><small>Preview unavailable</small>
+          </div>
+          <div class="preview-kind" id="previewKind">Video</div>
           <div class="duration" id="duration"></div>
         </div>
         <div class="result-content">
@@ -85,7 +89,18 @@
             </div>
             <div class="badge-stack">
               <span id="platformBadge" class="platform-badge">TikTok</span>
+              <span id="mediaTypeBadge" class="media-type-badge">Video</span>
               <span id="cleanBadge" class="clean-badge">Clean stream found</span>
+            </div>
+          </div>
+          <div id="qualityControls" class="quality-controls hidden">
+            <div id="videoQualityGroup" class="quality-group">
+              <div class="quality-label-row"><span>Video quality</span><small>Only available options are shown</small></div>
+              <div id="videoQualityOptions" class="quality-pills" role="group" aria-label="Video quality"></div>
+            </div>
+            <div id="audioQualityGroup" class="quality-group">
+              <div class="quality-label-row"><span>MP3 quality</span><small>Choose audio bitrate</small></div>
+              <div id="audioQualityOptions" class="quality-pills" role="group" aria-label="MP3 quality"></div>
             </div>
           </div>
           <div class="actions">
@@ -95,11 +110,11 @@
             </button>
             <button id="bestBtn" class="download-action" type="button">
               <span class="action-icon">↓</span>
-              <span><strong>Best available MP4</strong><small>Best video option</small></span>
+              <span><strong>Download MP4</strong><small id="bestQuality">Best available video</small></span>
             </button>
             <button id="audioBtn" class="download-action" type="button">
               <span class="action-icon">♫</span>
-              <span><strong>Download MP3</strong><small>192 kbps audio</small></span>
+              <span><strong>Download MP3</strong><small id="audioQuality">192 kbps audio</small></span>
             </button>
           </div>
           <p class="rights-note">Only download content you own or have permission to save. Private/login-only posts are not supported. Image availability depends on what the public post exposes.</p>
@@ -159,6 +174,6 @@
     <p>Not affiliated with or endorsed by TikTok, ByteDance, Instagram, or Meta.</p>
   </footer>
 
-  <script src="/app.js?v=1.5.0" defer></script>
+  <script src="/app.js?v=1.6.0" defer></script>
 </body>
 </html>

@@ -40,6 +40,8 @@ class ResolveRequest(BaseModel):
 class PrepareDownloadRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
     kind: str = Field(pattern=r"^(video-clean|video-best|audio-mp3|image-single|images-zip)$")
+    video_quality: str = Field(default="best", pattern=r"^(best|1080|720)$")
+    audio_bitrate: int = Field(default=192, ge=128, le=320)
 
 
 PREPARED_TTL_SECONDS = int(os.getenv("PREPARED_TTL_SECONDS", "300"))
@@ -68,7 +70,7 @@ async def _expire_prepared_later(token: str) -> None:
 
 app = FastAPI(
     title="Snipivo",
-    version="1.5.0",
+    version="1.6.0",
     docs_url="/api/docs" if os.getenv("ENABLE_DOCS", "0") == "1" else None,
     redoc_url=None,
 )
@@ -111,7 +113,7 @@ async def security_and_rate_limit(request: Request, call_next):
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
 
-    response.headers["X-Snipivo-Version"] = "1.5.0"
+    response.headers["X-Snipivo-Version"] = "1.6.0"
     return response
 
 
@@ -151,6 +153,8 @@ async def prepare_download(body: PrepareDownloadRequest):
             status_code=400,
             detail="The clean-stream option is only available for supported TikTok videos.",
         )
+    if body.audio_bitrate not in {128, 192, 320}:
+        raise HTTPException(status_code=400, detail="MP3 quality must be 128, 192, or 320 kbps.")
 
     _cleanup_expired_prepared()
 
@@ -161,6 +165,8 @@ async def prepare_download(body: PrepareDownloadRequest):
                 clean_url,
                 body.kind,
                 MAX_DURATION_SECONDS,
+                body.video_quality,
+                body.audio_bitrate,
             )
     except CleanStreamUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -175,6 +181,9 @@ async def prepare_download(body: PrepareDownloadRequest):
         "download_url": f"/api/prepared-download/{token}",
         "filename": artifact.download_name,
         "media_type": artifact.media_type,
+        "size_bytes": artifact.path.stat().st_size if artifact.path.exists() else None,
+        "video_quality": body.video_quality if body.kind == "video-best" else None,
+        "audio_bitrate": body.audio_bitrate if body.kind == "audio-mp3" else None,
     }
 
 
@@ -205,6 +214,8 @@ async def prepared_download(token: str):
 async def download(
     url: str = Query(min_length=8, max_length=2048),
     kind: str = Query(pattern="^(video-clean|video-best|audio-mp3|image-single|images-zip)$"),
+    video_quality: str = Query(default="best", pattern="^(best|1080|720)$"),
+    audio_bitrate: int = Query(default=192, ge=128, le=320),
 ):
     try:
         clean_url, platform = validate_media_url(url)
@@ -216,6 +227,8 @@ async def download(
             status_code=400,
             detail="The clean-stream option is only available for supported TikTok videos.",
         )
+    if audio_bitrate not in {128, 192, 320}:
+        raise HTTPException(status_code=400, detail="MP3 quality must be 128, 192, or 320 kbps.")
 
     try:
         async with download_semaphore:
@@ -224,6 +237,8 @@ async def download(
                 clean_url,
                 kind,
                 MAX_DURATION_SECONDS,
+                video_quality,
+                audio_bitrate,
             )
     except CleanStreamUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

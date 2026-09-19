@@ -1,20 +1,21 @@
-Snipivo TikTok + Instagram V1.5
+Snipivo TikTok + Instagram V1.6
 
 New in this release:
-- Adds best-effort public image support while preserving the stable V1.4 one-click download flow.
-- Instagram single-image posts: Download image.
-- Instagram supported image carousels: Download all images as ZIP.
-- TikTok supported photo-mode/slideshow posts: Download image(s), with multi-image posts packaged as ZIP.
-- Automatic media-type detection: video / image / carousel.
-- New GA4 image-resolution and image-download events.
-- New SEO pages for Instagram photos and TikTok photos.
-- Sitemap updated.
-- Keeps V1.4 cache busting and no-cache frontend delivery.
+- Adds visible media-type badges and clearer preview labels after link resolution.
+- Shows only available video-quality choices (Best, 1080p, 720p when exposed by the source).
+- Adds MP3 bitrate choices: 128, 192, and 320 kbps.
+- Shows approximate file size when source metadata is available.
+- Carousel results clearly show image count before ZIP download.
+- Download preparation messaging now includes the selected quality and elapsed time.
+- Prepared-download API returns the actual prepared file size when available.
+- GA4 events now include selected video quality / audio bitrate.
+- Preserves V1.5 image/carousel support and the V1.4 one-click automatic handoff.
+- Preserves no-cache frontend delivery for Safari and other mobile browsers.
 
-Expected flows:
-Video: Paste link -> resolve -> choose MP4/MP3/Clean -> Preparing -> automatic browser download.
-Image: Paste link -> resolve -> Download image -> Preparing -> automatic browser download.
-Carousel: Paste link -> resolve -> Download all images -> ZIP -> automatic browser download.
+Expected flow:
+Paste link -> resolve -> preview + platform/media type -> choose quality -> choose download -> Preparing -> automatic download.
 
-Important:
-Image support is best effort because TikTok/Instagram may not expose every public image post to an unauthenticated server. Snipivo does not use user passwords/cookies to bypass login gates.
+Notes:
+- File-size values shown before download are estimates based on metadata and can differ from the final file.
+- A 320 kbps MP3 output cannot add detail that does not exist in the source audio; it controls the MP3 encode bitrate.
+- Quality options are restricted to what the public source exposes.

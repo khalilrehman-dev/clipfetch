@@ -103,6 +103,119 @@ def _format_score(fmt: dict[str, Any]) -> tuple[int, float, int, int]:
     return (ext_bonus, height, tbr, size)
 
 
+def _format_size(fmt: dict[str, Any]) -> int:
+    try:
+        return int(fmt.get("filesize") or fmt.get("filesize_approx") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _quality_axis(fmt: dict[str, Any]) -> int:
+    """Return the short edge when dimensions are known.
+
+    Social video is commonly portrait (1080x1920), where yt-dlp reports
+    height=1920 even though users reasonably call the format 1080p. Using
+    the short edge keeps quality labels intuitive for both portrait and
+    landscape posts.
+    """
+    width = int(fmt.get("width") or 0)
+    height = int(fmt.get("height") or 0)
+    if width and height:
+        return min(width, height)
+    return height or width
+
+
+def _target_band(target: int) -> tuple[int, int]:
+    if target == 1080:
+        return (1000, 1120)
+    if target == 720:
+        return (680, 760)
+    return (target, target)
+
+
+def _formats_for_quality(formats: Iterable[dict[str, Any]], target: int) -> list[dict[str, Any]]:
+    low, high = _target_band(target)
+    return [
+        fmt for fmt in formats
+        if _is_video_format(fmt) and low <= _quality_axis(fmt) <= high
+    ]
+
+
+def _estimate_for_formats(formats: Iterable[dict[str, Any]]) -> int | None:
+    sizes = [_format_size(fmt) for fmt in formats]
+    sizes = [size for size in sizes if size]
+    return max(sizes) if sizes else None
+
+
+def _video_quality_options(formats: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    formats = list(formats)
+    video_formats = [fmt for fmt in formats if _is_video_format(fmt)]
+    max_axis = max((_quality_axis(fmt) for fmt in video_formats), default=0)
+    options: list[dict[str, Any]] = [
+        {
+            "value": "best",
+            "label": "Best",
+            "height": max_axis or None,
+            "approx_bytes": _estimate_for_formats(video_formats),
+        }
+    ]
+    for target in (1080, 720):
+        matching = _formats_for_quality(video_formats, target)
+        if matching:
+            options.append({
+                "value": str(target),
+                "label": f"{target}p",
+                "height": target,
+                "approx_bytes": _estimate_for_formats(matching),
+            })
+    return options
+
+
+def _audio_quality_options(duration_seconds: int) -> list[dict[str, Any]]:
+    duration = max(0, int(duration_seconds or 0))
+    out = []
+    for bitrate in (128, 192, 320):
+        approx = int(duration * bitrate * 1000 / 8) if duration else None
+        out.append({
+            "value": bitrate,
+            "label": f"{bitrate} kbps",
+            "approx_bytes": approx,
+        })
+    return out
+
+
+def _video_format_selector(info: dict[str, Any], platform: Platform, quality: str) -> str:
+    formats = list(info.get("formats") or [])
+    if quality not in {"best", "1080", "720"}:
+        quality = "best"
+    if quality != "best":
+        target = int(quality)
+        matching = _formats_for_quality(formats, target)
+        if matching:
+            # Prefer MP4, then an A/V progressive format, then the highest bitrate.
+            chosen = max(
+                matching,
+                key=lambda fmt: (
+                    1 if str(fmt.get("ext") or "").lower() == "mp4" else 0,
+                    1 if _has_audio(fmt) else 0,
+                    float(fmt.get("tbr") or 0.0),
+                    _format_size(fmt),
+                ),
+            )
+            format_id = str(chosen.get("format_id") or "")
+            if format_id:
+                if _has_audio(chosen):
+                    return f"{format_id}/best"
+                return f"{format_id}+bestaudio[ext=m4a]/{format_id}+bestaudio/{format_id}/best"
+
+    if platform == "instagram":
+        return (
+            "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
+            "bestvideo+bestaudio/best"
+        )
+    return "best[ext=mp4]/best"
+
+
 def choose_clean_format(formats: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
     candidates = [
         f
@@ -457,6 +570,9 @@ def _image_metadata(info: ImagePostInfo) -> dict[str, Any]:
         "formats_count": 0,
         "image_count": len(info.images),
         "has_images": True,
+        "video_qualities": [],
+        "audio_qualities": [],
+        "max_height": None,
     }
 
 
@@ -519,6 +635,9 @@ def extract_metadata(url: str, max_duration_seconds: int) -> dict[str, Any]:
         "formats_count": len(formats),
         "image_count": 0,
         "has_images": False,
+        "video_qualities": _video_quality_options(formats),
+        "audio_qualities": _audio_quality_options(duration),
+        "max_height": max((_quality_axis(fmt) for fmt in formats if _is_video_format(fmt)), default=0) or None,
     }
 
 
@@ -591,7 +710,13 @@ def _download_image_post(url: str, kind: str, platform: Platform) -> DownloadArt
         raise
 
 
-def download_media(url: str, kind: str, max_duration_seconds: int) -> DownloadArtifact:
+def download_media(
+    url: str,
+    kind: str,
+    max_duration_seconds: int,
+    video_quality: str = "best",
+    audio_bitrate: int = 192,
+) -> DownloadArtifact:
     platform: Platform = "instagram" if "instagram.com" in url.lower() or "instagr.am" in url.lower() else "tiktok"
     if kind in {"image-single", "images-zip"}:
         return _download_image_post(url, kind, platform)
@@ -624,23 +749,19 @@ def download_media(url: str, kind: str, max_duration_seconds: int) -> DownloadAr
             target_ext = "mp4"
             media_type = "video/mp4"
         elif kind == "video-best":
-            if platform == "instagram":
-                opts["format"] = (
-                    "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/"
-                    "bestvideo+bestaudio/best"
-                )
-            else:
-                opts["format"] = "best[ext=mp4]/best"
+            opts["format"] = _video_format_selector(info, platform, video_quality)
             opts["merge_output_format"] = "mp4"
             target_ext = "mp4"
             media_type = "video/mp4"
         elif kind == "audio-mp3":
+            if audio_bitrate not in {128, 192, 320}:
+                audio_bitrate = 192
             opts["format"] = "bestaudio/best"
             opts["postprocessors"] = [
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
-                    "preferredquality": "192",
+                    "preferredquality": str(audio_bitrate),
                 }
             ]
             target_ext = "mp3"

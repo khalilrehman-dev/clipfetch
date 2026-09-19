@@ -2,9 +2,19 @@
 
 A FastAPI + yt-dlp downloader for **permitted public TikTok and Instagram media**.
 
-## V1.5 media expansion
+## V1.6 quality + preview upgrade
 
-V1.5 keeps the working TikTok/Instagram video flow from V1.4 and adds best-effort support for public image posts:
+V1.6 builds on V1.5 with a clearer resolved-media experience and user-selectable download quality:
+
+- Proper platform + media-type preview badges after resolving a link.
+- Available video choices: Best, 1080p, and 720p when the public source exposes them.
+- MP3 bitrate choices: 128, 192, and 320 kbps.
+- Approximate file-size hints when metadata is available.
+- Carousel image count shown before ZIP download.
+- Quality-aware preparation status and GA4 events.
+- Actual prepared file size returned by the API when available.
+
+Existing media support remains:
 
 - TikTok public videos: clean stream when available, MP4, MP3.
 - Instagram public Reels/video posts: MP4, MP3.
@@ -60,15 +70,15 @@ or
 {"url":"https://www.instagram.com/p/ABC123/"}
 ```
 
-The response includes `platform`, `content_type` (`video`, `image`, or `carousel`), metadata, and `image_count` when applicable.
+The response includes `platform`, `content_type` (`video`, `image`, or `carousel`), metadata, `image_count` when applicable, and quality/size hints for videos.
 
 ### `POST /api/prepare-download`
 
 Supported `kind` values:
 
 - `video-clean` - TikTok video only, when a clean public stream exists.
-- `video-best` - best available MP4.
-- `audio-mp3` - MP3 audio.
+- `video-best` - MP4 using `video_quality`: `best`, `1080`, or `720`.
+- `audio-mp3` - MP3 audio using `audio_bitrate`: `128`, `192`, or `320`.
 - `image-single` - a supported single image.
 - `images-zip` - supported images packaged in one ZIP.
 
