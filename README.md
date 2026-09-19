@@ -1,5 +1,10 @@
 # Snipivo
 
+## V1.4 cache-busting fix
+
+V1.4 forces browsers, including iPhone Safari/WebKit, to fetch the current frontend after deployment. The app now versions critical CSS/JS URLs and disables caching for HTML, `app.js`, and `styles.css`. This prevents old download logic from surviving across releases.
+
+
 A FastAPI + yt-dlp downloader for **permitted public TikTok and Instagram videos**.
 
 ## What it does

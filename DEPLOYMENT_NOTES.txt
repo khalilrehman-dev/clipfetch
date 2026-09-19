@@ -1,64 +1,12 @@
-SNIPIVO 1.1 - TIKTOK + INSTAGRAM
-Date: 2026-09-18
+Snipivo TikTok + Instagram V1.4
 
-BASE RECOVERY
-- The uploaded ZIP was confirmed to be the "Add IndexNow integration" commit.
-- That commit had accidentally deleted app/static/styles.css and app/static/app.js.
-- This package was rebuilt from the previous stable commit:
-  "Improve download loading and prevent repeated clicks".
-- IndexNow was then re-added safely WITHOUT deleting the CSS or JavaScript assets.
+Fixes in this release:
+- One-tap download flow: after the user chooses Clean / MP4 / MP3, Snipivo prepares the file and automatically hands it to the browser download manager.
+- Removes the extra "Ready — tap to save" step on iPhone/iPad.
+- Applies to both TikTok and Instagram download options.
+- Keeps prepared download URLs valid briefly so Safari/Chrome can retry or use range requests without getting a false expired/used error.
+- Preserves V1.3 cache busting and no-cache frontend headers.
+- Bumps frontend/backend troubleshooting version to 1.4.0.
 
-NEW INSTAGRAM SUPPORT
-- Auto-detect TikTok vs Instagram URLs.
-- Public Instagram Reels supported when yt-dlp can resolve them without login.
-- Public single Instagram video posts supported when yt-dlp can resolve them without login.
-- Instagram MP4 download.
-- Instagram MP3 extraction.
-- TikTok Clean / MP4 / MP3 flow preserved.
-- "Without watermark" is TikTok-only and hidden for Instagram.
-- Private/login-only Instagram content returns a user-friendly error.
-- Instagram image-only posts, profiles, stories and carousels are intentionally unsupported in this release.
-- No Instagram password/cookies are requested or stored.
-
-ANALYTICS
-- Existing TikTok events preserved.
-- video_resolved now includes a platform parameter.
-- Added instagram_resolved.
-- Added download_instagram_mp4.
-- Added download_instagram_mp3.
-
-SEO / INDEXNOW
-- Added /instagram-video-downloader/
-- Added /instagram-reels-downloader/
-- Sitemap now contains 15 URLs.
-- Existing IndexNow key file preserved.
-- scripts/submit_indexnow.py preserved safely.
-
-VALIDATION COMPLETED IN BUILD ENVIRONMENT
-- Python syntax compilation passed for main.py, downloader.py, security.py and IndexNow script.
-- JavaScript syntax check passed for app/static/app.js.
-- 25 unit tests passed for URL security, TikTok clean-format logic, and platform helpers using a yt-dlp import stub because this build environment has no package-network access.
-- Confirmed styles.css and app.js are present in the final package.
-
-AFTER DEPLOYMENT - TEST THESE FIRST
-1. Open https://snipivo.online and hard refresh (Ctrl+Shift+R).
-2. Confirm the premium dark UI is intact.
-3. Test one known public TikTok link: resolve, Clean (if available), MP4, MP3.
-4. Test one public Instagram Reel you own or are allowed to save: resolve, MP4, MP3.
-5. Test one public Instagram single video post.
-6. Test a private/login-only Instagram link and confirm a clean error appears.
-7. Confirm /api/health returns ok=true and lists tiktok + instagram.
-8. Confirm /instagram-video-downloader/ and /instagram-reels-downloader/ load with styling.
-9. After the site is confirmed healthy, submit ONLY the two new Instagram URLs through IndexNow if desired.
-
-IMPORTANT
-Instagram can change its public delivery/login requirements. A public post can sometimes still be rejected by Instagram/yt-dlp. The app fails gracefully rather than using personal account credentials to bypass those restrictions.
-
-V1.2 download handoff fix (iPhone/iPad Safari)
-- Replaced the hidden iframe download handoff that could appear stuck on iOS Safari.
-- Added /api/prepare-download to prepare the media file server-side and return a short-lived token.
-- Added /api/prepared-download/{token} to hand the prepared attachment directly to the browser.
-- iOS now shows real elapsed preparation time, then a clear "Ready - tap to save" step.
-- Desktop/Android automatically start the prepared file once ready, with the same direct-attachment fallback.
-- Removed the blind 20-second unlock that could allow duplicate server-side downloads while a prior request was still running.
-- Prepared files expire after 5 minutes by default (PREPARED_TTL_SECONDS=300).
+Expected flow:
+Paste link -> resolve -> choose format once -> Preparing -> browser download starts automatically.

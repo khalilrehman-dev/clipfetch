@@ -1,3 +1,4 @@
+const SNIPIVO_FRONTEND_VERSION = '1.4.0';
 const form = document.getElementById('downloadForm');
 const input = document.getElementById('videoUrl');
 const fetchBtn = document.getElementById('fetchBtn');
@@ -137,50 +138,22 @@ function setDownloadBusy(active, activeButton = null) {
   showMessage(`Preparing your ${platformLabel()} file. Keep this page open — Snipivo will tell you when it is ready.`, true);
 }
 
-function markReady(button, kind, downloadUrl) {
-  downloadBusy = false;
-  clearPrepareTimer();
-  resetActionButtons();
-
-  // Keep only the prepared action available until the handoff is completed.
-  // This prevents a second server-side preparation from being started while
-  // Safari is waiting for the first prepared file to be saved.
-  actionButtons.forEach((actionButton) => {
-    actionButton.disabled = true;
-  });
-
-  button.dataset.downloadUrl = downloadUrl;
-  button.classList.add('ready');
-  button.disabled = false;
-  const strong = button.querySelector('strong');
-  const small = button.querySelector('small');
-  if (strong) strong.textContent = isIOS ? 'Ready — tap to save' : 'Download ready';
-  if (small) {
-    small.textContent = isIOS
-      ? 'Tap once more to open Safari download'
-      : 'Your browser is starting the download';
-  }
-}
-
-function handoffPreparedDownload(button, kind) {
-  const downloadUrl = button.dataset.downloadUrl;
-  if (!downloadUrl) return false;
+function handoffPreparedDownload(button, kind, downloadUrl = null) {
+  const resolvedUrl = downloadUrl || button.dataset.downloadUrl;
+  if (!resolvedUrl) return false;
 
   trackEvent('download_handoff', {
     format: kind,
     platform: currentPlatform,
-    ios: isIOS ? 'yes' : 'no'
+    ios: isIOS ? 'yes' : 'no',
+    automatic: 'yes'
   });
 
-  // A top-level navigation to a same-origin attachment is much more reliable
-  // on iPhone/iPad Safari than loading the file inside a hidden iframe.
-  window.location.assign(downloadUrl);
-  showMessage(
-    isIOS
-      ? 'Download sent to Safari. Check Safari’s download arrow or the Files app.'
-      : 'Download started. You can choose another format.',
-    true
-  );
+  // Use a same-origin top-level navigation so the browser can hand the
+  // prepared attachment directly to its download manager. Unlike popup
+  // windows, location navigation does not require a second user click.
+  window.location.assign(resolvedUrl);
+  showMessage('Download started. Check your browser downloads or Files app if needed.', true);
 
   window.setTimeout(() => {
     resetActionButtons();
@@ -191,13 +164,6 @@ function handoffPreparedDownload(button, kind) {
 async function buildDownload(kind, button) {
   if (!currentUrl) return;
   if (currentPlatform === 'instagram' && kind === 'video-clean') return;
-
-  // On iOS the first tap prepares the file; the second tap is a real user
-  // gesture that hands the attachment to Safari's download manager.
-  if (button.dataset.downloadUrl) {
-    handoffPreparedDownload(button, kind);
-    return;
-  }
 
   if (downloadBusy) return;
 
@@ -240,16 +206,10 @@ async function buildDownload(kind, button) {
       throw new Error(data.detail || 'The download could not be prepared. Please try again.');
     }
 
-    markReady(button, kind, data.download_url);
-
-    if (isIOS) {
-      showMessage('Ready. Tap the highlighted button once more to save the file in Safari.', true);
-    } else {
-      showMessage('File ready. Starting your browser download…', true);
-      window.setTimeout(() => {
-        if (button.dataset.downloadUrl) handoffPreparedDownload(button, kind);
-      }, 120);
-    }
+    downloadBusy = false;
+    clearPrepareTimer();
+    showMessage(`File ready. Starting your ${platformLabel()} download…`, true);
+    handoffPreparedDownload(button, kind, data.download_url);
   } catch (error) {
     downloadBusy = false;
     clearPrepareTimer();

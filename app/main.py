@@ -58,9 +58,17 @@ def _cleanup_expired_prepared() -> None:
             shutil.rmtree(artifact.temp_dir, ignore_errors=True)
 
 
+async def _expire_prepared_later(token: str) -> None:
+    await asyncio.sleep(PREPARED_TTL_SECONDS)
+    item = prepared_downloads.pop(token, None)
+    if item is not None:
+        artifact, _created = item
+        shutil.rmtree(artifact.temp_dir, ignore_errors=True)
+
+
 app = FastAPI(
     title="Snipivo",
-    version="1.2.0",
+    version="1.4.0",
     docs_url="/api/docs" if os.getenv("ENABLE_DOCS", "0") == "1" else None,
     redoc_url=None,
 )
@@ -87,6 +95,23 @@ async def security_and_rate_limit(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["X-Frame-Options"] = "DENY"
+
+    # Snipivo is actively deployed and the frontend controls critical download
+    # behavior. Never let a browser keep an older app.js/styles.css or HTML
+    # shell after a new release. Versioned asset URLs provide cache busting,
+    # while these headers protect devices that previously cached unversioned
+    # files (especially iOS Safari/WebKit).
+    content_type = response.headers.get("content-type", "").lower()
+    path = request.url.path
+    if (
+        content_type.startswith("text/html")
+        or path in {"/app.js", "/styles.css"}
+    ):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+    response.headers["X-Snipivo-Version"] = "1.4.0"
     return response
 
 
@@ -144,6 +169,7 @@ async def prepare_download(body: PrepareDownloadRequest):
 
     token = secrets.token_urlsafe(24)
     prepared_downloads[token] = (artifact, time.monotonic())
+    asyncio.create_task(_expire_prepared_later(token))
     return {
         "ok": True,
         "download_url": f"/api/prepared-download/{token}",
@@ -155,7 +181,11 @@ async def prepare_download(body: PrepareDownloadRequest):
 @app.get("/api/prepared-download/{token}")
 async def prepared_download(token: str):
     _cleanup_expired_prepared()
-    item = prepared_downloads.pop(token, None)
+    # Keep the prepared token valid for the short TTL window. Some mobile
+    # browsers retry attachment requests or use follow-up range requests.
+    # Making the token reusable during the TTL avoids a false 404 on those
+    # browser-managed retries.
+    item = prepared_downloads.get(token)
     if item is None:
         raise HTTPException(
             status_code=404,
@@ -167,7 +197,6 @@ async def prepared_download(token: str):
         path=artifact.path,
         media_type=artifact.media_type,
         filename=artifact.download_name,
-        background=BackgroundTask(shutil.rmtree, artifact.temp_dir, True),
         headers={"Cache-Control": "private, no-store"},
     )
 
